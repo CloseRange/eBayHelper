@@ -1,0 +1,297 @@
+require('dotenv').config();
+
+const { setupEbayPolicies } = require('./ebay_policies');
+const { getEbaySignInUrl } = require('./index');
+
+const eBayJsonHeaders = {
+    Authorization: `Bearer ${process.env.EBAY_ACCESS_TOKEN}`,
+    Accept: "application/json",
+    "Accept-Language": "en-US",
+    "Content-Language": "en-US"
+};
+
+async function getAllInventoryItems() {
+    try {
+        const response = await fetch(
+            "https://api.sandbox.ebay.com/sell/inventory/v1/inventory_item?limit=5&offset=0",
+            {
+                method: "GET",
+                headers: eBayJsonHeaders
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(
+                `eBay API returned ${response.status}: ${JSON.stringify(data)}`
+            );
+        }
+
+        return data.inventoryItems ?? [];
+    } catch (err) {
+        console.error("Error fetching inventory:", err);
+        throw err;
+    }
+}
+async function createLocation(locationKey, locationData) {
+    const merchantLocationKey = "home-inventory";
+
+    const body = {
+    location: {
+        address: {
+        postalCode: "54901",
+        country: "US"
+        }
+    },
+
+    name: "Main Inventory Location",
+
+    merchantLocationStatus: "ENABLED",
+
+    locationTypes: [
+        "WAREHOUSE"
+    ]
+    };
+
+    const response = await fetch(
+    `https://api.sandbox.ebay.com/sell/inventory/v1/location/${encodeURIComponent(merchantLocationKey)}`,
+    {
+        method: "POST",
+        headers: {
+            ...eBayJsonHeaders,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body)
+    }
+    );
+
+    if (!response.ok) {
+        const error = await response.text();
+        console.error("eBay location error:", response.status, error);
+    } else {
+        console.log("Inventory location created!");
+        return response;
+    }
+}
+async function _createInventoryItem(info) {
+    const body = {
+    product: {
+        title: info.title,
+        description: info.description,
+        imageUrls: info.imageUrls,
+        aspects: info.aspects
+    },
+    condition: info.condition,
+    availability: {
+        shipToLocationAvailability: {
+        quantity: 1
+        }
+    }
+    };
+
+    const response = await fetch(
+    `https://api.sandbox.ebay.com/sell/inventory/v1/inventory_item/${encodeURIComponent(info.sku)}`,
+    {
+        method: "PUT",
+        headers: {
+            ...eBayJsonHeaders,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body)
+    }
+    );
+
+    if (!response.ok) {
+        const error = await response.text();
+        console.error("eBay error:", response.status, error);
+    } else {
+        console.log("Inventory item created/updated");
+        return response;
+    }
+}
+async function _createOffer(info) {
+    const body = {
+        sku: info.sku,
+        marketplaceId: "EBAY_US",
+        format: "FIXED_PRICE",
+        availableQuantity: 1,
+        categoryId: info.categoryId,
+        merchantLocationKey: "home-inventory",
+
+        listingPolicies: {
+            fulfillmentPolicyId: process.env.EBAY_FULFILLMENT_POLICY_ID,
+            paymentPolicyId: process.env.EBAY_PAYMENT_POLICY_ID,
+            returnPolicyId: process.env.EBAY_RETURN_POLICY_ID
+        },
+
+        pricingSummary: {
+            price: {
+            currency: "USD",
+            value: info.price
+            }
+        },
+
+        listingDuration: "GTC"
+        };
+
+    const response = await fetch(
+    "https://api.sandbox.ebay.com/sell/inventory/v1/offer",
+    {
+        method: "POST",
+        headers: {
+            ...eBayJsonHeaders,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body)
+    }
+    );
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+        const message = data?.errors ? JSON.stringify(data.errors) : JSON.stringify(data);
+        console.error("eBay offer error:", response.status, message);
+        throw new Error(`eBay offer creation failed: ${message}`);
+    }
+
+    console.log("Offer created!");
+    return data;
+}
+
+async function _publishOffer(offerId) {
+    const response = await fetch(
+        `https://api.sandbox.ebay.com/sell/inventory/v1/offer/${encodeURIComponent(offerId)}/publish`,
+        {
+            method: "POST",
+            headers: {
+                ...eBayJsonHeaders,
+                "Content-Type": "application/json",
+            }
+        }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        console.error(
+            "Publish failed:",
+            response.status,
+            JSON.stringify(data, null, 2)
+        );
+
+        throw new Error("Failed to publish offer");
+    }
+
+    console.log("Published!");
+    console.log("Listing ID:", data.listingId);
+
+    return data;
+}
+
+
+async function postListing(info={
+    price: 19.99,
+    title: "Sample Product",
+    sku: "SAMPLE123",
+    description: "This is a sample product description.",
+    categoryId: "12345",
+    condition: "PRE_OWNED_EXCELLENT", // USED_EXCELLENT / PRE_OWNED_FAIR
+    imageUrls: [],
+    aspects: {
+        Brand: ["Nike"],
+        Size: ["M"],
+        Color: ["Black"],
+        Department: ["Men"]
+    }
+}) {
+    // const locationResponse = await _createLocation();
+    await _createInventoryItem(info);
+    const offer = await _createOffer(info);
+
+    if (!offer || !offer.offerId) {
+        throw new Error(`Offer response missing offerId for SKU ${info.sku}`);
+    }
+
+    const published = await _publishOffer(offer.offerId);
+
+    return {
+        sku: info.sku,
+        offerId: offer.offerId,
+        listingId: published.listingId
+    };
+}
+async function ebaySetup() {
+    await createLocation();
+    await setupEbayPolicies();
+}
+async function getOffersForSku(sku) {
+    const response = await fetch(
+        `https://api.sandbox.ebay.com/sell/inventory/v1/offer?sku=${encodeURIComponent(sku)}`,
+        {
+            method: "GET",
+            headers: eBayJsonHeaders
+        }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        return [];
+    }
+
+    return data.offers ?? [];
+}
+async function getActiveListings() {
+    const inventoryResponse = await fetch(
+        "https://api.sandbox.ebay.com/sell/inventory/v1/inventory_item?limit=100&offset=0",
+        {
+            method: "GET",
+            headers: {
+                ...eBayJsonHeaders,
+                "X-EBAY-C-MARKETPLACE-ID": "EBAY_US",
+                "X-EBAY-C-ENDUSERCTX": "affiliateCampaignId=<ePNCampaignId>,affiliateReferenceId=<referenceId>"
+            }
+        }
+    );
+
+    const inventoryData = await inventoryResponse.json();
+
+    if (!inventoryResponse.ok) {
+        throw new Error(
+            `Failed to get inventory: ${JSON.stringify(inventoryData)}`
+        );
+    }
+
+    const inventoryItems = inventoryData.inventoryItems ?? [];
+    const listings = [];
+
+    for (const item of inventoryItems) {
+        const offers = await getOffersForSku(item.sku);
+        
+        for (const offer of offers) {
+            if (
+                offer.status === "PUBLISHED" &&
+                offer.listing?.listingStatus === "ACTIVE"
+            ) {
+                listings.push({
+                    sku: item.sku,
+                    title: item.product?.title,
+                    description: item.product?.description,
+                    images: item.product?.imageUrls ?? [],
+                    condition: item.condition,
+                    price: offer.pricingSummary?.price,
+                    quantity: offer.availableQuantity,
+                    categoryId: offer.categoryId,
+                    offerId: offer.offerId,
+                    listingId: offer.listing?.listingId,
+                    listingStatus: offer.listing?.listingStatus,
+                    marketplaceId: offer.marketplaceId
+                });
+            }
+        }
+    }
+
+    return listings;
+}
+module.exports = { getAllInventoryItems, postListing, createLocation, ebaySetup, getActiveListings };

@@ -1,0 +1,855 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Create Listing | eBay Helper</title>
+    <link rel="stylesheet" href="/css/listings.css" />
+  </head>
+  <body>
+    <div class="page-shell narrow-shell">
+      <header class="wizard-header">
+        <div class="wizard-title-block">
+          <p class="eyebrow">New item</p>
+          <h1>Create listing</h1>
+        </div>
+        <a class="close-button" href="/dashboard" aria-label="Cancel and return to listings">×</a>
+      </header>
+
+      <nav class="wizard-steps" aria-label="Listing steps">
+        <div class="step <%= !selectedCategory || currentStep === 'category' ? 'active' : '' %>">
+          <span class="step-dot"></span>
+          <span class="step-label">Category</span>
+        </div>
+        <div class="step <%= selectedCategory && currentStep === 'options' ? 'active' : '' %>">
+          <span class="step-dot"></span>
+          <span class="step-label">Options</span>
+        </div>
+        <div class="step <%= currentStep === 'photos' ? 'active' : '' %>">
+          <span class="step-dot"></span>
+          <span class="step-label">Photos</span>
+        </div>
+        <div class="step <%= currentStep === 'summary' ? 'active' : '' %>">
+          <span class="step-dot"></span>
+          <span class="step-label">Summary</span>
+        </div>
+      </nav>
+
+      <% if (!selectedCategory) { %>
+        <section class="wizard-card">
+          <div class="section-heading">
+            <p class="eyebrow muted">Step 1</p>
+            <h2>Category</h2>
+          </div>
+
+          <div class="form-group">
+            <label for="category">Choose category</label>
+
+            <div class="custom-select" data-select>
+              <button type="button" class="select-trigger" data-select-trigger aria-haspopup="listbox" aria-expanded="false">
+                <span class="select-trigger-text">Select one</span>
+                <span class="select-arrow">▾</span>
+              </button>
+
+              <input type="hidden" id="category" name="category" value="" />
+
+              <div class="select-options" role="listbox" aria-label="Category options">
+                <% categoryOptions.forEach((option) => { %>
+                  <button
+                    type="button"
+                    class="select-option"
+                    role="option"
+                    data-value="<%= option.value %>"
+                    data-label="<%= option.label %>"
+                  >
+                    <%= option.label %>
+                  </button>
+                <% }); %>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="wizard-actions">
+          <button type="button" class="secondary-btn" disabled>Back</button>
+          <button type="button" id="category-next" class="primary-btn" disabled>Next</button>
+        </div>
+      <% } else if (currentStep === 'photos') { %>
+        <section class="wizard-card">
+          <div class="section-heading">
+            <p class="eyebrow muted">Step 3</p>
+            <h2>Photos</h2>
+            <p class="selected-category"><strong>Category:</strong> <%= selectedCategory %></p>
+          </div>
+
+          <div class="photo-grid">
+            <div class="photo-card" data-photo-card>
+              <div class="photo-header">
+                <label>Front</label>
+              </div>
+              <div class="upload-box" data-upload-box>
+                <button type="button" class="upload-trigger" aria-label="Add front photo">
+                  <span class="upload-plus">＋</span>
+                  <span class="upload-caption">Add photo</span>
+                </button>
+                <img class="upload-preview" alt="Front photo preview" hidden />
+                <div class="upload-popover" role="dialog" aria-label="Front photo options" hidden>
+                  <img class="upload-popover-preview" alt="Current front photo preview" hidden />
+                  <button type="button" class="popover-option" data-source="camera">Take photo</button>
+                  <button type="button" class="popover-option" data-source="gallery">Choose from gallery</button>
+                  <input type="file" accept="image/*" capture="environment" data-camera-input hidden />
+                  <input type="file" accept="image/*" data-gallery-input hidden />
+                </div>
+              </div>
+            </div>
+
+            <div class="photo-card" data-photo-card>
+              <div class="photo-header">
+                <label>Back</label>
+              </div>
+              <div class="upload-box" data-upload-box>
+                <button type="button" class="upload-trigger" aria-label="Add back photo">
+                  <span class="upload-plus">＋</span>
+                  <span class="upload-caption">Add photo</span>
+                </button>
+                <img class="upload-preview" alt="Back photo preview" hidden />
+                <div class="upload-popover" role="dialog" aria-label="Back photo options" hidden>
+                  <img class="upload-popover-preview" alt="Current back photo preview" hidden />
+                  <button type="button" class="popover-option" data-source="camera">Take photo</button>
+                  <button type="button" class="popover-option" data-source="gallery">Choose from gallery</button>
+                  <input type="file" accept="image/*" capture="environment" data-camera-input hidden />
+                  <input type="file" accept="image/*" data-gallery-input hidden />
+                </div>
+              </div>
+            </div>
+
+            <div class="photo-card" data-photo-card>
+              <div class="photo-header">
+                <label>Tag</label>
+              </div>
+              <div class="upload-box" data-upload-box>
+                <button type="button" class="upload-trigger" aria-label="Add tag photo">
+                  <span class="upload-plus">＋</span>
+                  <span class="upload-caption">Add photo</span>
+                </button>
+                <img class="upload-preview" alt="Tag photo preview" hidden />
+                <div class="upload-popover" role="dialog" aria-label="Tag photo options" hidden>
+                  <img class="upload-popover-preview" alt="Current tag photo preview" hidden />
+                  <button type="button" class="popover-option" data-source="camera">Take photo</button>
+                  <button type="button" class="popover-option" data-source="gallery">Choose from gallery</button>
+                  <input type="file" accept="image/*" capture="environment" data-camera-input hidden />
+                  <input type="file" accept="image/*" data-gallery-input hidden />
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="wizard-actions">
+          <button type="button" class="secondary-btn" id="photos-back">Back</button>
+          <button type="button" id="photos-next" class="primary-btn" disabled>Next</button>
+        </div>
+      <% } else if (currentStep === 'summary') { %>
+        <section class="wizard-card">
+          <div class="section-heading">
+            <p class="eyebrow muted">Step 4</p>
+            <h2>Review</h2>
+            <p class="selected-category"><strong>Category:</strong> <%= selectedCategory %></p>
+          </div>
+
+          <div class="review-stack">
+            <div class="review-section">
+              <div class="review-header">
+                <h3><strong>Category</strong></h3>
+              </div>
+              <div class="review-summary-row">
+                <span class="summary-review-label">Category</span>
+                <span class="summary-review-value"><%= selectedCategory %></span>
+              </div>
+            </div>
+
+            <div class="review-section">
+              <div class="review-header">
+                <h3><strong>Required Details</strong></h3>
+              </div>
+              <div id="summary-required-list" class="summary-detail-list"></div>
+            </div>
+
+            <div class="review-section">
+              <div class="review-header">
+                <h3><strong>Optional Details</strong></h3>
+              </div>
+              <div id="summary-optional-list" class="summary-detail-list summary-detail-empty">None selected</div>
+            </div>
+
+            <div class="review-section">
+              <div class="review-header">
+                <h3>Photos</h3>
+              </div>
+              <div class="review-photo-grid">
+                <div class="review-photo-card">
+                  <span>Front</span>
+                  <img id="review-photo-front" alt="Front review photo" />
+                </div>
+                <div class="review-photo-card">
+                  <span>Back</span>
+                  <img id="review-photo-back" alt="Back review photo" />
+                </div>
+                <div class="review-photo-card">
+                  <span>Tag</span>
+                  <img id="review-photo-tag" alt="Tag review photo" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="wizard-actions">
+          <button type="button" class="secondary-btn" id="summary-back">Back</button>
+          <button type="button" id="summary-generate" class="primary-btn">Generate</button>
+        </div>
+      <% } else { %>
+        <section class="wizard-card">
+          <div class="section-heading">
+            <p class="eyebrow muted">Step 2</p>
+            <h2>Options</h2>
+            <p class="selected-category"><strong>Category:</strong> <%= selectedCategory %></p>
+          </div>
+
+          <% if (aspectError) { %>
+            <div class="inline-message error">
+              <%= aspectError %>
+            </div>
+          <% } else if (!aspects.length) { %>
+            <div class="inline-message muted">No options were returned for this category.</div>
+          <% } else { %>
+            <div class="aspect-section required-panel">
+              <div class="panel-header">
+                <h3>Required</h3>
+                <span class="panel-tag required-tag">Needed</span>
+              </div>
+
+              <% aspects.filter((aspect) => aspect.required).forEach((aspect) => { %>
+                <% const aspectId = aspect.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); %>
+                <div class="aspect-item">
+                  <label for="aspect-<%= aspectId %>"><%= aspect.name %></label>
+
+                  <div class="custom-select aspect-select" data-select>
+                    <button type="button" class="select-trigger" data-select-trigger aria-haspopup="listbox" aria-expanded="false">
+                      <span class="select-trigger-text"></span>
+                      <span class="select-arrow">▾</span>
+                    </button>
+
+                    <input type="hidden" id="aspect-<%= aspectId %>" name="aspect-<%= aspectId %>" value="" data-required="true" />
+
+                    <div class="select-options" role="listbox" aria-label="<%= aspect.name %> options">
+                      <div class="select-search-wrap">
+                        <input type="search" class="select-search" placeholder="Search <%= aspect.name %>" autocomplete="off" data-search-input />
+                      </div>
+                      <div class="select-no-results" data-no-results hidden>No matches found</div>
+                      <button type="button" class="select-option" role="option" data-value="" data-label="Select <%= aspect.name %>">Select <%= aspect.name %></button>
+                      <%
+                        const values = Array.isArray(aspect.values) && aspect.values.length
+                          ? aspect.values.filter((value) => typeof value === 'string' && value.trim().length)
+                          : ['Not available'];
+                      %>
+                      <% values.forEach((value) => { %>
+                        <button type="button" class="select-option" role="option" data-value="<%= value %>" data-label="<%= value %>"><%= value %></button>
+                      <% }); %>
+                    </div>
+                  </div>
+                </div>
+              <% }); %>
+            </div>
+
+            <div class="aspect-section price-panel">
+              <div class="panel-header">
+                <h3>Price</h3>
+                <span class="panel-tag price-tag">Listing price</span>
+              </div>
+
+              <div class="price-input-wrap">
+                <label for="listing-price">Price</label>
+                <div class="price-field">
+                  <span class="currency-symbol">$</span>
+                  <input
+                    id="listing-price"
+                    type="text"
+                    inputmode="decimal"
+                    value="9.99"
+                    aria-label="Listing price"
+                  />
+                  <button type="button" id="listing-price-save" class="price-save-btn" aria-label="Save price">
+                    <img src="/icons/map-pin-check-inside.svg" alt="Check price" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="aspect-section optional-panel">
+              <div class="panel-header">
+                <h3>Optional</h3>
+                <span class="panel-tag optional-tag">Optional</span>
+              </div>
+
+              <% aspects.filter((aspect) => !aspect.required).forEach((aspect) => { %>
+                <% const aspectId = aspect.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); %>
+                <div class="aspect-item">
+                  <label for="aspect-<%= aspectId %>"><%= aspect.name %></label>
+
+                  <div class="custom-select aspect-select" data-select>
+                    <button type="button" class="select-trigger" data-select-trigger aria-haspopup="listbox" aria-expanded="false">
+                      <span class="select-trigger-text"></span>
+                      <span class="select-arrow">▾</span>
+                    </button>
+
+                    <input type="hidden" id="aspect-<%= aspectId %>" name="aspect-<%= aspectId %>" value="" data-required="false" />
+
+                    <div class="select-options" role="listbox" aria-label="<%= aspect.name %> options">
+                      <div class="select-search-wrap">
+                        <input type="search" class="select-search" placeholder="Search <%= aspect.name %>" autocomplete="off" data-search-input />
+                      </div>
+                      <div class="select-no-results" data-no-results hidden>No matches found</div>
+                      <button type="button" class="select-option" role="option" data-value="" data-label="Select <%= aspect.name %>">Select <%= aspect.name %></button>
+                      <%
+                        const values = Array.isArray(aspect.values) && aspect.values.length
+                          ? aspect.values.filter((value) => typeof value === 'string' && value.trim().length)
+                          : ['Not available'];
+                      %>
+                      <% values.forEach((value) => { %>
+                        <button type="button" class="select-option" role="option" data-value="<%= value %>" data-label="<%= value %>"><%= value %></button>
+                      <% }); %>
+                    </div>
+                  </div>
+                </div>
+              <% }); %>
+            </div>
+          <% } %>
+        </section>
+
+        <div class="wizard-actions">
+          <button type="button" class="secondary-btn" id="options-back">Back</button>
+          <button type="button" id="options-next" class="primary-btn" disabled>Next</button>
+        </div>
+      <% } %>
+    </div>
+
+    <script>
+      const categorySelect = document.querySelector('.custom-select input[name="category"]')?.closest('.custom-select');
+      if (categorySelect) {
+        const trigger = categorySelect.querySelector('[data-select-trigger]');
+        const hiddenInput = categorySelect.querySelector('input[name="category"]');
+        const categoryNext = document.getElementById('category-next');
+        const optionButtons = categorySelect.querySelectorAll('.select-option');
+        const triggerText = categorySelect.querySelector('.select-trigger-text');
+
+        const syncCategoryNext = () => {
+          if (categoryNext) {
+            categoryNext.disabled = !hiddenInput.value;
+          }
+        };
+
+        const closeMenu = () => {
+          categorySelect.classList.remove('is-open');
+          trigger.setAttribute('aria-expanded', 'false');
+        };
+
+        trigger.addEventListener('click', (event) => {
+          event.stopPropagation();
+          const isOpen = categorySelect.classList.toggle('is-open');
+          trigger.setAttribute('aria-expanded', String(isOpen));
+        });
+
+        optionButtons.forEach((button) => {
+          button.addEventListener('click', () => {
+            const value = button.dataset.value;
+            const label = button.dataset.label;
+
+            hiddenInput.value = value;
+            triggerText.textContent = label;
+            optionButtons.forEach((item) => item.classList.toggle('is-selected', item === button));
+            syncCategoryNext();
+            closeMenu();
+          });
+        });
+
+        categoryNext?.addEventListener('click', () => {
+          if (!hiddenInput.value) return;
+          window.location.href = `/create-listing?category=${encodeURIComponent(hiddenInput.value)}`;
+        });
+
+        document.addEventListener('click', (event) => {
+          if (!categorySelect.contains(event.target)) {
+            closeMenu();
+          }
+        });
+
+        syncCategoryNext();
+      }
+
+      const optionsBack = document.getElementById('options-back');
+      if (optionsBack) {
+        optionsBack.addEventListener('click', () => {
+          window.location.href = '/create-listing';
+        });
+      }
+
+      const photosBack = document.getElementById('photos-back');
+      if (photosBack) {
+        photosBack.addEventListener('click', () => {
+          const category = new URLSearchParams(window.location.search).get('category');
+          window.location.href = category ? `/create-listing?category=${encodeURIComponent(category)}` : '/create-listing';
+        });
+      }
+
+      const photosNext = document.getElementById('photos-next');
+      const syncPhotosNext = () => {
+        if (!photosNext) return;
+        const frontReady = !!sessionStorage.getItem('listing-photo-front');
+        const backReady = !!sessionStorage.getItem('listing-photo-back');
+        photosNext.disabled = !(frontReady && backReady);
+      };
+
+      if (photosNext) {
+        photosNext.addEventListener('click', () => {
+          const frontReady = !!sessionStorage.getItem('listing-photo-front');
+          const backReady = !!sessionStorage.getItem('listing-photo-back');
+          if (!frontReady || !backReady) return;
+
+          const category = new URLSearchParams(window.location.search).get('category');
+          window.location.href = category ? `/create-listing?category=${encodeURIComponent(category)}&step=summary` : '/dashboard';
+        });
+        syncPhotosNext();
+      }
+
+      const summaryBack = document.getElementById('summary-back');
+      if (summaryBack) {
+        summaryBack.addEventListener('click', () => {
+          const category = new URLSearchParams(window.location.search).get('category');
+          window.location.href = category ? `/create-listing?category=${encodeURIComponent(category)}&step=photos` : '/dashboard';
+        });
+      }
+
+      const optionsNextButton = document.getElementById('options-next');
+      if (optionsNextButton) {
+        optionsNextButton.addEventListener('click', () => {
+          const category = new URLSearchParams(window.location.search).get('category');
+          if (!category) return;
+          window.location.href = `/create-listing?category=${encodeURIComponent(category)}&step=photos`;
+        });
+      }
+
+      const compressImageDataUrl = (dataUrl, { maxWidth = 1200, maxHeight = 1600, quality = 0.72 } = {}) => {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ratio = Math.min(maxWidth / img.width, maxHeight / img.height, 1);
+            canvas.width = Math.max(1, Math.round(img.width * ratio));
+            canvas.height = Math.max(1, Math.round(img.height * ratio));
+
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+            resolve(canvas.toDataURL('image/jpeg', quality));
+          };
+          img.onerror = () => reject(new Error('Unable to compress the selected photo.'));
+          img.src = dataUrl;
+        });
+      };
+
+      const getListingDraft = () => {
+        try {
+          return JSON.parse(sessionStorage.getItem('listing-draft') || '{}');
+        } catch {
+          return {};
+        }
+      };
+
+      const setListingDraft = (draft) => {
+        sessionStorage.setItem('listing-draft', JSON.stringify(draft));
+      };
+
+      const normalizePriceInput = (value) => {
+        const parsed = Number(String(value).trim());
+        if (!Number.isFinite(parsed) || parsed <= 0) {
+          return null;
+        }
+        return Number(parsed.toFixed(2));
+      };
+
+      const getSavedPrice = () => {
+        const draft = getListingDraft();
+        const saved = normalizePriceInput(draft.price ?? 9.99);
+        return saved ?? 9.99;
+      };
+
+      const persistPriceDraft = (nextValue) => {
+        const priceInput = document.getElementById('listing-price');
+        if (!priceInput) return;
+
+        const valid = normalizePriceInput(nextValue);
+        const finalValue = valid ?? getSavedPrice();
+        const draft = getListingDraft();
+
+        if (valid === null) {
+          priceInput.value = finalValue.toFixed(2);
+          return;
+        }
+
+        draft.price = Number(finalValue.toFixed(2));
+        setListingDraft(draft);
+        priceInput.value = finalValue.toFixed(2);
+      };
+
+      const savePriceDraft = () => {
+        const priceInput = document.getElementById('listing-price');
+        if (!priceInput) return;
+
+        const valid = normalizePriceInput(priceInput.value);
+        const draft = getListingDraft();
+
+        if (valid === null) {
+          priceInput.value = getSavedPrice().toFixed(2);
+          return;
+        }
+
+        draft.price = Number(valid.toFixed(2));
+        setListingDraft(draft);
+        priceInput.value = valid.toFixed(2);
+      };
+
+      const persistSelectedOption = (input) => {
+        if (!input || !input.name) return;
+        const draft = getListingDraft();
+        const label = input.name.replace(/^aspect-/, '').replace(/-/g, ' ');
+        const value = String(input.value || '').trim();
+
+        if (!draft.options) draft.options = {};
+        if (value) {
+          draft.options[input.name] = {
+            label,
+            value,
+            required: input.dataset.required === 'true',
+          };
+        } else {
+          delete draft.options[input.name];
+        }
+
+        setListingDraft(draft);
+      };
+
+      const buildSummaryReview = () => {
+        const requiredList = document.getElementById('summary-required-list');
+        const optionalList = document.getElementById('summary-optional-list');
+        const photoMap = {
+          front: document.getElementById('review-photo-front'),
+          back: document.getElementById('review-photo-back'),
+          tag: document.getElementById('review-photo-tag'),
+        };
+
+        const draft = getListingDraft();
+        const options = draft.options || {};
+        const requiredEntries = Object.values(options).filter((entry) => entry.required);
+        const optionalEntries = Object.values(options).filter((entry) => !entry.required);
+
+        if (requiredList) {
+          if (!requiredEntries.length) {
+            requiredList.innerHTML = '<div class="summary-detail-empty">No required details selected yet.</div>';
+          } else {
+            requiredList.innerHTML = requiredEntries.map((entry) => `
+              <div class="summary-review-row">
+                <span class="summary-review-label">${entry.label}</span>
+                <span class="summary-review-value">${entry.value}</span>
+              </div>
+            `).join('');
+          }
+        }
+
+        if (optionalList) {
+          if (!optionalEntries.length) {
+            optionalList.textContent = 'None selected';
+            optionalList.classList.add('summary-detail-empty');
+          } else {
+            optionalList.textContent = '';
+            optionalList.classList.remove('summary-detail-empty');
+            optionalList.innerHTML = optionalEntries.map((entry) => `
+              <div class="summary-review-row">
+                <span class="summary-review-label">${entry.label}</span>
+                <span class="summary-review-value">${entry.value}</span>
+              </div>
+            `).join('');
+          }
+        }
+
+        Object.entries(photoMap).forEach(([key, img]) => {
+          if (!img) return;
+          const value = sessionStorage.getItem(`listing-photo-${key}`);
+          if (value) {
+            img.src = value;
+            img.hidden = false;
+          } else {
+            img.alt = `${key.charAt(0).toUpperCase() + key.slice(1)} photo not added`;
+            img.removeAttribute('src');
+            img.hidden = true;
+          }
+        });
+      };
+
+      const summaryGenerate = document.getElementById('summary-generate');
+      if (summaryGenerate) {
+        summaryGenerate.addEventListener('click', async () => {
+          const frontImage64 = sessionStorage.getItem('listing-photo-front');
+          const backImage64 = sessionStorage.getItem('listing-photo-back');
+          const tagImage64 = sessionStorage.getItem('listing-photo-tag') || undefined;
+          const draft = JSON.parse(sessionStorage.getItem('listing-draft') || '{}');
+          const category = new URLSearchParams(window.location.search).get('category');
+          const parsedPrice = normalizePriceInput(document.getElementById('listing-price')?.value ?? draft.price ?? 9.99);
+          const priceValue = parsedPrice ?? getSavedPrice();
+
+          if (!frontImage64 || !backImage64) {
+            return;
+          }
+
+          summaryGenerate.disabled = true;
+          summaryGenerate.textContent = 'Generating...';
+
+          try {
+            const response = await fetch('/api/listing/generate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                frontImage64,
+                backImage64,
+                tagImage64,
+                info: {
+                  category: category || draft.category || '',
+                  price: Number(priceValue.toFixed(2)),
+                  features: draft.options || {},
+                },
+              }),
+            });
+
+            const payload = await response.json();
+            if (!response.ok || !payload?.sku) {
+              throw new Error(payload?.error || 'Unable to generate the listing right now.');
+            }
+
+            window.location.href = `/listing/submitted?sku=${encodeURIComponent(payload.sku)}`;
+          } catch (error) {
+            console.error('Generate listing failed:', error);
+            summaryGenerate.disabled = false;
+            summaryGenerate.textContent = 'Generate';
+            alert(error.message || 'Unable to generate the listing right now.');
+          }
+        });
+      }
+
+      if (document.getElementById('summary-required-list')) {
+        buildSummaryReview();
+      }
+
+      const priceInput = document.getElementById('listing-price');
+      const priceSaveButton = document.getElementById('listing-price-save');
+      if (priceInput) {
+        const draft = getListingDraft();
+        const savedPrice = getSavedPrice();
+        if (draft.price == null) {
+          draft.price = savedPrice;
+          setListingDraft(draft);
+        }
+        priceInput.value = savedPrice.toFixed(2);
+
+        priceInput.addEventListener('input', () => {
+          if (!priceInput.value.trim()) {
+            return;
+          }
+        });
+
+        priceSaveButton?.addEventListener('click', () => {
+          savePriceDraft();
+        });
+      }
+
+      document.querySelectorAll('[data-upload-box]').forEach((box) => {
+        const trigger = box.querySelector('.upload-trigger');
+        const popover = box.querySelector('.upload-popover');
+        const popoverPreview = box.querySelector('.upload-popover-preview');
+        const preview = box.querySelector('.upload-preview');
+        const plus = box.querySelector('.upload-plus');
+        const caption = box.querySelector('.upload-caption');
+        const cameraInput = box.querySelector('[data-camera-input]');
+        const galleryInput = box.querySelector('[data-gallery-input]');
+
+        const openPopover = () => {
+          if (!popover) return;
+          if (popoverPreview && preview && !preview.hidden && preview.src) {
+            popoverPreview.src = preview.src;
+            popoverPreview.hidden = false;
+          } else if (popoverPreview) {
+            popoverPreview.hidden = true;
+          }
+          popover.removeAttribute('hidden');
+          box.classList.add('is-open');
+        };
+
+        const closePopover = () => {
+          if (!popover) return;
+          popover.setAttribute('hidden', 'hidden');
+          box.classList.remove('is-open');
+        };
+
+        trigger?.addEventListener('click', (event) => {
+          event.stopPropagation();
+          const isOpen = !popover.hidden;
+          if (isOpen) {
+            closePopover();
+          } else {
+            openPopover();
+          }
+        });
+
+        const showPreview = async (file) => {
+          if (!file || !preview) return;
+          const reader = new FileReader();
+          reader.onload = async (e) => {
+            try {
+              const dataUrl = await compressImageDataUrl(e.target.result, { maxWidth: 1200, maxHeight: 1600, quality: 0.72 });
+              preview.src = dataUrl;
+              preview.hidden = false;
+              if (plus) plus.hidden = true;
+              if (caption) caption.textContent = file.name.length > 18 ? `${file.name.slice(0, 18)}…` : file.name;
+              box.classList.add('is-ready');
+
+              const cardLabel = box.closest('[data-photo-card]')?.querySelector('.photo-header label')?.textContent?.trim().toLowerCase();
+              if (cardLabel) {
+                sessionStorage.setItem(`listing-photo-${cardLabel}`, dataUrl);
+              }
+              syncPhotosNext();
+            } catch (error) {
+              console.error('Photo compression failed:', error);
+            }
+          };
+          reader.readAsDataURL(file);
+          closePopover();
+        };
+
+        cameraInput?.addEventListener('change', (event) => {
+          const file = event.target.files && event.target.files[0];
+          if (file) showPreview(file);
+          event.target.value = '';
+        });
+
+        galleryInput?.addEventListener('change', (event) => {
+          const file = event.target.files && event.target.files[0];
+          if (file) showPreview(file);
+          event.target.value = '';
+        });
+
+        box.querySelectorAll('.popover-option').forEach((option) => {
+          option.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const source = option.dataset.source;
+            const input = source === 'camera' ? cameraInput : galleryInput;
+            if (input) input.click();
+          });
+        });
+
+        document.addEventListener('click', (event) => {
+          if (!box.contains(event.target)) {
+            closePopover();
+          }
+        });
+      });
+
+      document.querySelectorAll('.aspect-select').forEach((selectRoot) => {
+        const trigger = selectRoot.querySelector('[data-select-trigger]');
+        if (!trigger) return;
+
+        const hiddenInput = selectRoot.querySelector('input[type="hidden"]');
+        const optionButtons = selectRoot.querySelectorAll('.select-option');
+        const triggerText = selectRoot.querySelector('.select-trigger-text');
+        const searchInput = selectRoot.querySelector('[data-search-input]');
+        const noResults = selectRoot.querySelector('[data-no-results]');
+
+        const closeMenu = () => {
+          selectRoot.classList.remove('is-open');
+          trigger.setAttribute('aria-expanded', 'false');
+          if (searchInput) {
+            searchInput.value = '';
+            optionButtons.forEach((button) => {
+              button.hidden = false;
+            });
+            if (noResults) noResults.hidden = true;
+          }
+        };
+
+        trigger.addEventListener('click', (event) => {
+          event.stopPropagation();
+          const isOpen = selectRoot.classList.toggle('is-open');
+          trigger.setAttribute('aria-expanded', String(isOpen));
+          if (isOpen && searchInput) {
+            setTimeout(() => searchInput.focus(), 50);
+          }
+        });
+
+        if (searchInput) {
+          searchInput.addEventListener('input', () => {
+            const query = searchInput.value.trim().toLowerCase();
+            let visibleCount = 0;
+
+            optionButtons.forEach((button) => {
+              const label = (button.dataset.label || button.textContent || '').toLowerCase();
+              const matches = !query || label.includes(query);
+              button.hidden = !matches;
+              if (matches) visibleCount += 1;
+            });
+
+            if (noResults) {
+              noResults.hidden = visibleCount > 0;
+            }
+          });
+        }
+
+        optionButtons.forEach((button) => {
+          button.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const value = button.dataset.value;
+            const label = button.dataset.label;
+
+            if (hiddenInput) {
+              hiddenInput.value = value;
+              persistSelectedOption(hiddenInput);
+            }
+
+            if (triggerText) {
+              triggerText.textContent = label;
+            }
+
+            optionButtons.forEach((item) => item.classList.toggle('is-selected', item === button));
+            closeMenu();
+            syncOptionsNext();
+          });
+        });
+
+        document.addEventListener('click', (event) => {
+          if (!selectRoot.contains(event.target)) {
+            closeMenu();
+          }
+        });
+      });
+
+      const requiredAspectSelects = Array.from(document.querySelectorAll('input[type="hidden"][data-required="true"]'));
+
+      const syncOptionsNext = () => {
+        if (!optionsNextButton) return;
+        const allRequiredSelected = requiredAspectSelects.every((select) => String(select.value || '').trim() !== '');
+        optionsNextButton.disabled = !allRequiredSelected;
+      };
+
+      syncOptionsNext();
+    </script>
+  </body>
+</html>

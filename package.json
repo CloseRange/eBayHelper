@@ -1,0 +1,39 @@
+{
+  "name": "ebayhelper",
+  "version": "1.0.0",
+  "description": "eBay helper website built with Express",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/run.js",
+    "server": "node src/server.js",
+    "ebay:test": "node src/ebay/test_post_listing.js",
+    "openai:text": "node src/ebay/openai_prompt.js",
+    "openai:image": "node src/ebay/openai_image.js",
+    "tunnel:auth": "node src/ebay/ngrok_auth.js",
+    "tunnel:start": "ngrok http 3000 --log=stdout",
+    "kill-ports": "lsof -ti :3000 -ti :3102 -ti :3103 | xargs kill -9 || true"
+  },
+  "keywords": [
+    "express",
+    "ebay",
+    "dashboard"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.8",
+    "axios": "^1.8.2",
+    "dotenv": "^16.4.7",
+    "ejs": "^3.1.10",
+    "express": "^4.21.2",
+    "express-session": "^1.18.1",
+    "form-data": "^4.0.6",
+    "multer": "^2.2.0",
+    "sharp": "^0.35.4"
+  },
+  "devDependencies": {
+    "ngrok": "^5.0.0-beta.2",
+    "nodemon": "^3.1.9"
+  }
+}

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login | eBay Helper</title>
+    <link rel="stylesheet" href="/css/auth.css" />
+  </head>
+  <body>
+    <main class="auth-page">
+      <section class="auth-card" aria-labelledby="login-heading">
+        <p class="eyebrow">Citrus Lavender</p>
+        <h1 id="login-heading">Welcome Back</h1>
+        <p class="subtitle">Sign in to continue managing your eBay workflow.</p>
+
+        <% if (error) { %>
+          <div class="alert" role="alert"><%= error %></div>
+        <% } %>
+
+        <form method="post" action="/login" class="auth-form">
+          <label for="password">Passcode</label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            required
+            placeholder="Enter your passcode"
+          />
+
+          <button type="submit">Unlock</button>
+        </form>
+      </section>
+    </main>
+  </body>
+</html>

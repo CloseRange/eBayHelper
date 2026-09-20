@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Listings | eBay Helper</title>
+    <link rel="stylesheet" href="/css/listings.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Active listings</p>
+          <h1>Inventory</h1>
+        </div>
+        <form method="post" action="/logout" class="logout-form">
+          <button type="submit" class="logout-button">Log out</button>
+        </form>
+      </header>
+
+      <% if (error) { %>
+        <div class="status-banner error"><%= error %></div>
+      <% } %>
+
+      <% if (!listings || listings.length === 0) { %>
+        <section class="empty-state">
+          <div class="empty-icon-wrap">
+            <img src="/icons/heart-plus.svg" alt="Package icon" />
+          </div>
+          <h2>No active listings</h2>
+          <p>You do not have any published eBay listings right now.</p>
+        </section>
+      <% } else { %>
+        <main class="listings-grid">
+          <% listings.forEach((listing) => { %>
+            <article class="listing-card" aria-label="<%= listing.title || 'eBay listing' %>">
+              <div class="image-strip">
+                <% if (listing.images && listing.images.length) { %>
+                  <% listing.images.forEach((imageUrl) => { %>
+                    <img src="<%= imageUrl %>" alt="<%= listing.title || 'Listing image' %>" />
+                  <% }); %>
+                <% } else { %>
+                  <div class="image-placeholder">
+                    <img src="/icons/heart-plus.svg" alt="No image" />
+                  </div>
+                <% } %>
+              </div>
+
+              <div class="listing-body">
+                <div class="listing-header">
+                  <h3><%= listing.title || 'Untitled listing' %></h3>
+                  <span class="status-pill"><%= listing.listingStatus || 'ACTIVE' %></span>
+                </div>
+
+                <div class="meta-row">
+                  <span>SKU: <strong><%= listing.sku || '—' %></strong></span>
+                  <span>Qty: <strong><%= listing.quantity ?? 0 %></strong></span>
+                </div>
+
+                <% if (listing.price && listing.price.value) { %>
+                  <div class="price-row">
+                    <span class="price"><%= listing.price.currency || 'USD' %> <%= Number(listing.price.value).toFixed(2) %></span>
+                  </div>
+                <% } %>
+
+                <% if (listing.description) { %>
+                  <p class="description"><%= listing.description %></p>
+                <% } %>
+              </div>
+            </article>
+          <% }); %>
+        </main>
+      <% } %>
+
+      <a class="fab" href="/create-listing" aria-label="Add new listing">
+        <span>+</span>
+      </a>
+    </div>
+  </body>
+</html>
