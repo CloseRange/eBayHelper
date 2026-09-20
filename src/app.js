@@ -48,6 +48,16 @@ function requireAuth(req, res, next) {
 	return next();
 }
 
+function hydrateEbaySessionToken(req) {
+	if (req.session.ebayAccessToken && !process.env.EBAY_ACCESS_TOKEN) {
+		process.env.EBAY_ACCESS_TOKEN = req.session.ebayAccessToken;
+	}
+	if (req.session.ebayRefreshToken && !process.env.EBAY_REFRESH_TOKEN) {
+		process.env.EBAY_REFRESH_TOKEN = req.session.ebayRefreshToken;
+	}
+	return Boolean(process.env.EBAY_ACCESS_TOKEN || req.session.ebayAccessToken);
+}
+
 app.get('/', (req, res) => {
 	if (req.session.user) {
 		return res.redirect('/dashboard');
@@ -119,11 +129,17 @@ app.post('/login', async (req, res) => {
 });
 
 app.get('/dashboard', requireAuth, async (req, res) => {
+	const hasEbayToken = hydrateEbaySessionToken(req);
+
+	if (!hasEbayToken) {
+		return res.redirect('/auth/ebay/login');
+	}
+
 	let listings = [];
 	let error = null;
 
 	try {
-		if (process.env.EBAY_ACCESS_TOKEN) {
+		if (process.env.EBAY_ACCESS_TOKEN || req.session.ebayAccessToken) {
 			listings = await getActiveListings();
 		}
 	} catch (err) {
@@ -138,6 +154,7 @@ app.get('/dashboard', requireAuth, async (req, res) => {
 });
 
 app.get('/create-listing', requireAuth, async (req, res) => {
+	hydrateEbaySessionToken(req);
 	const categoryOptions = Object.values(types).map((type) => ({
 		value: type.name,
 		label: type.name,
@@ -176,6 +193,7 @@ app.get('/create-listing', requireAuth, async (req, res) => {
 
 app.post('/api/listing/generate', requireAuth, async (req, res) => {
 	try {
+		hydrateEbaySessionToken(req);
 		const frontImage64 = typeof req.body?.frontImage64 === 'string' ? req.body.frontImage64 : '';
 		const backImage64 = typeof req.body?.backImage64 === 'string' ? req.body.backImage64 : '';
 		const rawTagImage64 = typeof req.body?.tagImage64 === 'string' ? req.body.tagImage64 : undefined;
@@ -310,21 +328,16 @@ app.get('/auth/ebay/callback', async (req, res) => {
 	try {
 		const tokens = await exchangeAuthCodeForTokens({ code });
 
-		if (tokens.accessToken) process.env.EBAY_ACCESS_TOKEN = tokens.accessToken;
-		if (tokens.refreshToken) process.env.EBAY_REFRESH_TOKEN = tokens.refreshToken;
+		if (tokens.accessToken) {
+			process.env.EBAY_ACCESS_TOKEN = tokens.accessToken;
+			req.session.ebayAccessToken = tokens.accessToken;
+		}
+		if (tokens.refreshToken) {
+			process.env.EBAY_REFRESH_TOKEN = tokens.refreshToken;
+			req.session.ebayRefreshToken = tokens.refreshToken;
+		}
 
-		return res.json({
-			ok: true,
-			message: 'eBay OAuth complete. Save these tokens in your .env file.',
-			state: state || null,
-			tokenSource: 'oauth_code',
-			scopesRequested: getRequestedScopes(),
-			tokens,
-			envToSet: {
-				EBAY_ACCESS_TOKEN: tokens.accessToken || '',
-				EBAY_REFRESH_TOKEN: tokens.refreshToken || '',
-			},
-		});
+		return res.redirect('/dashboard');
 	} catch (err) {
 		return res.status(500).json({
 			error: 'Failed to exchange eBay auth code for tokens',
