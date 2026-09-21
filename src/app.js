@@ -61,6 +61,9 @@ function hydrateEbaySessionToken(req) {
 
 async function ensureEbayAccessToken(req) {
 	try {
+		if(process.env.EBAY_ACCESS_TOKEN) {
+			return true;
+		}
 		console.log('[ensureEbayAccessToken] minting fresh eBay token with env:', process.env.EBAY_ENV || 'PRODUCTION');
 		const token = await getEbayAccessToken({
 			forceRefresh: true,
@@ -444,7 +447,7 @@ app.get('/auth/ebay/callback', async (req, res) => {
 			req.session.ebayRefreshToken = tokens.refreshToken;
 		}
 
-		return res.status(200).send(renderEbaySuccessPage(code));
+		return res.status(200).send(renderEbaySuccessPage(tokens));
 	} catch (err) {
 		return res.status(500).json({
 			error: 'Failed to exchange eBay auth code for tokens',
