@@ -8,10 +8,29 @@ const { getActiveListings, postListing, ebaySetup } = require('./ebay/ebay');
 const { getAspects, types } = require('./ebay/ebay_categories');
 
 const { generateSKU } = require('./util/post_new_item');
+const EbayAuthToken = require('ebay-oauth-nodejs-client');
+const { env } = require('process');
 
 async function main() {
   try {
-    await ebaySetup();
+    // await ebaySetup();
+
+    const ebayAuthToken = new EbayAuthToken({
+        clientId: env.EBAY_CLIENT_ID,
+        clientSecret: env.EBAY_CLIENT_SECRET,
+        redirectUri: env.EBAY_REDIRECT_URI
+    });
+    await (async () => {
+        const token = await ebayAuthToken.getApplicationToken('PRODUCTION');
+        console.log(token);
+    })();
+    await (async () => {
+        const authUrl = ebayAuthToken.generateUserAuthorizationUrl(
+            'PRODUCTION', 
+            ['https://api.ebay.com/oauth/api_scope/sell.inventory', 'https://api.ebay.com/oauth/api_scope/sell.account', 'https://api.ebay.com/oauth/api_scope/sell.fulfillment', 'https://api.ebay.com/oauth/api_scope/sell.marketing', 'https://api.ebay.com/oauth/api_scope/sell.analytics']);
+        console.log(authUrl);
+    })();
+    console.log('EbayAuthToken instance created:', ebayAuthToken);
     // await generateSKU();
     // await setupEbayPolicies();
     

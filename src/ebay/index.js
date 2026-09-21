@@ -1,7 +1,12 @@
 const querystring = require('querystring');
+const EbayAuthToken = require('ebay-oauth-nodejs-client');
+
+let cachedEbayAccessToken = null;
+let cachedEbayAccessTokenExpiry = 0;
+let cachedEbayEnvironment = null;
 
 function getEbayBaseUrls() {
-  const isProd = process.env.EBAY_ENV === 'production';
+  const isProd = (process.env.EBAY_ENV || '').toLowerCase() === 'production';
 
   return {
     authBase: isProd ? 'https://auth.ebay.com/oauth2/authorize' : 'https://auth.sandbox.ebay.com/oauth2/authorize',
@@ -14,6 +19,49 @@ function getRequestedScopes() {
     .split(/\s+/)
     .map((scope) => scope.trim())
     .filter(Boolean);
+}
+
+function normalizeEnvironmentValue(value) {
+  const rawValue = String(value || '').trim().toUpperCase();
+  return rawValue === 'SANDBOX' ? 'SANDBOX' : 'PRODUCTION';
+}
+
+async function getEbayAccessToken({ forceRefresh = false, environment = process.env.EBAY_ENV || 'PRODUCTION', scopes = process.env.EBAY_SCOPES } = {}) {
+  const clientId = process.env.EBAY_CLIENT_ID;
+  const clientSecret = process.env.EBAY_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new Error('Missing eBay OAuth settings: EBAY_CLIENT_ID or EBAY_CLIENT_SECRET.');
+  }
+
+  const normalizedEnvironment = normalizeEnvironmentValue(environment);
+  const requestedScopes = Array.isArray(scopes)
+    ? scopes
+    : String(scopes || '').split(/\s+/).map((scope) => scope.trim()).filter(Boolean);
+
+  if (!forceRefresh && cachedEbayAccessToken && cachedEbayEnvironment === normalizedEnvironment && Date.now() < cachedEbayAccessTokenExpiry - 60000) {
+    return cachedEbayAccessToken;
+  }
+
+  const ebayAuthToken = new EbayAuthToken({
+    clientId,
+    clientSecret,
+    redirectUri: process.env.EBAY_REDIRECT_URI || 'https://ebayhelper.onrender.com/auth/ebay/callback',
+  });
+
+  const rawToken = await ebayAuthToken.getApplicationToken(normalizedEnvironment, requestedScopes.length ? requestedScopes : undefined);
+  const payload = typeof rawToken === 'string' ? JSON.parse(rawToken) : rawToken;
+
+  if (!payload || !payload.access_token) {
+    throw new Error(payload?.error_description || payload?.error || 'eBay app token request failed.');
+  }
+
+  cachedEbayAccessToken = payload.access_token;
+  cachedEbayAccessTokenExpiry = Date.now() + Number(payload.expires_in || 7200) * 1000;
+  cachedEbayEnvironment = normalizedEnvironment;
+  process.env.EBAY_ACCESS_TOKEN = payload.access_token;
+
+  return payload.access_token;
 }
 
 function getEbaySignInUrl({ state } = {}) {
@@ -82,6 +130,7 @@ async function exchangeAuthCodeForTokens({ code }) {
 }
 
 module.exports = {
+  getEbayAccessToken,
   getEbaySignInUrl,
   exchangeAuthCodeForTokens,
   getRequestedScopes,
