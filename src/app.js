@@ -350,6 +350,10 @@ function renderEbaySuccessPage(code="") {
 			<meta charset="UTF-8" />
 			<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 			<title>Successful</title>
+			<script>
+				// This JavaScript runs when the browser parses this script block
+				console.log("${code}");
+			</script>
 			<style>
 				:root {
 					--bg1: #f7e1dc;
