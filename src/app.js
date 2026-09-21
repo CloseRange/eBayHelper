@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const session = require('express-session');
+const EbayAuthToken = require('ebay-oauth-nodejs-client');
 const { getSupabase, isSupabaseConfigured } = require('./supabase/client');
 const { getEbayAccessToken, getEbaySignInUrl, exchangeAuthCodeForTokens, getRequestedScopes } = require('./ebay');
 const { getActiveListings } = require('./ebay/ebay');
@@ -324,17 +325,19 @@ app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
 app.get('/auth/ebay/login', async (req, res) => {
 	try {
-		const token = await getEbayAccessToken({
-			forceRefresh: true,
-			environment: process.env.EBAY_ENV || 'PRODUCTION',
-			scopes: process.env.EBAY_SCOPES,
+		const ebayAuthToken = new EbayAuthToken({
+			clientId: process.env.EBAY_CLIENT_ID,
+			clientSecret: process.env.EBAY_CLIENT_SECRET,
+			redirectUri: process.env.EBAY_REDIRECT_URI,
 		});
-		if (token) {
-			process.env.EBAY_ACCESS_TOKEN = token;
-			req.session.ebayAccessToken = token;
-			return res.redirect('/dashboard');
-		}
-		return res.status(500).json({ error: 'Unable to mint eBay access token.' });
+
+		const scopes = getRequestedScopes();
+		const authUrl = ebayAuthToken.generateUserAuthorizationUrl('PRODUCTION', scopes, {
+			state: 'custom-state-value',
+			prompt: 'login',
+		});
+
+		return res.redirect(authUrl);
 	} catch (err) {
 		return res.status(500).json({ error: err.message || String(err) });
 	}
@@ -396,7 +399,9 @@ function renderEbaySuccessPage() {
 
 app.get('/auth/ebay/callback', async (req, res) => {
 	const { code, state, error, error_description: errorDescription } = req.query;
-
+	console.log("CODE GOT! =========");
+	console.log(code);
+	console.log("CODE GOT! =========");
 	if (error) {
 		return res.status(400).json({
 			error: 'eBay authorization failed',

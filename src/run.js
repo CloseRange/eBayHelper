@@ -25,10 +25,17 @@ async function main() {
         console.log(token);
     })();
     await (async () => {
-        const authUrl = ebayAuthToken.generateUserAuthorizationUrl(
-            'PRODUCTION', 
-            ['https://api.ebay.com/oauth/api_scope/sell.inventory', 'https://api.ebay.com/oauth/api_scope/sell.account']);
-        console.log(authUrl);
+        const scopes = [
+            'https://api.ebay.com/oauth/api_scope/sell.inventory',
+            'https://api.ebay.com/oauth/api_scope/sell.account'];
+        const options = { state: 'custom-state-value', prompt: 'login' };
+        const authUrl = ebayAuthToken.generateUserAuthorizationUrl('PRODUCTION', scopes, options);
+
+
+        (async () => {
+            const accessToken = await ebayAuthToken.exchangeCodeForAccessToken('PRODUCTION', code);
+            console.log(accessToken);
+        })();
     })();
     console.log('EbayAuthToken instance created:', ebayAuthToken);
     // await generateSKU();

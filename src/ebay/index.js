@@ -1,10 +1,12 @@
 const querystring = require('querystring');
 const EbayAuthToken = require('ebay-oauth-nodejs-client');
-const { raw } = require('express');
 
 const DEFAULT_EBAY_SCOPES = [
   'https://api.ebay.com/oauth/api_scope/sell.inventory',
   'https://api.ebay.com/oauth/api_scope/sell.account',
+  'https://api.ebay.com/oauth/api_scope/sell.fulfillment',
+  'https://api.ebay.com/oauth/api_scope/sell.marketing',
+  'https://api.ebay.com/oauth/api_scope/sell.analytics',
 ];
 
 let cachedEbayAccessToken = null;
@@ -54,9 +56,15 @@ async function getEbayAccessToken({ forceRefresh = false, environment = process.
   const requestedScopes = Array.isArray(scopes)
     ? scopes
     : String(scopes || '').split(/\s+/).map((scope) => scope.trim()).filter(Boolean);
+  const effectiveScopes = requestedScopes.length ? requestedScopes : [...DEFAULT_EBAY_SCOPES];
 
-  //const effectiveScopes = requestedScopes.length ? requestedScopes : [...DEFAULT_EBAY_SCOPES];
-  effectiveScopes = DEFAULT_EBAY_SCOPES;
+  if (!forceRefresh && process.env.EBAY_ACCESS_TOKEN) {
+    cachedEbayAccessToken = process.env.EBAY_ACCESS_TOKEN;
+    cachedEbayAccessTokenExpiry = Date.now() + 60 * 60 * 1000;
+    cachedEbayEnvironment = normalizedEnvironment;
+    return process.env.EBAY_ACCESS_TOKEN;
+  }
+
   if (!forceRefresh && cachedEbayAccessToken && cachedEbayEnvironment === normalizedEnvironment && Date.now() < cachedEbayAccessTokenExpiry - 60000) {
     return cachedEbayAccessToken;
   }
@@ -67,10 +75,8 @@ async function getEbayAccessToken({ forceRefresh = false, environment = process.
     redirectUri: process.env.EBAY_REDIRECT_URI || 'https://ebayhelper.onrender.com/auth/ebay/callback',
   });
 
-  const rawToken = await ebayAuthToken.getApplicationToken(normalizedEnvironment);
+  const rawToken = await ebayAuthToken.getApplicationToken(normalizedEnvironment, effectiveScopes);
   const payload = typeof rawToken === 'string' ? JSON.parse(rawToken) : rawToken;
-  console.log(rawToken);
-  console.log('eBay token payload:', payload);
 
   if (!payload || !payload.access_token) {
     throw new Error(payload?.error_description || payload?.error || 'eBay app token request failed.');
