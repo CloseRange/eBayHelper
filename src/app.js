@@ -441,7 +441,7 @@ app.get('/auth/ebay/callback', async (req, res) => {
 				state: state || null,
 			});
 		}
-		return endMint(res, code);
+		return endMint(res, req, code, state);
 	} catch (err) {
 		return res.status(500).json({
 			error: 'Failed to exchange eBay auth code for tokens',

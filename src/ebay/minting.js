@@ -30,7 +30,7 @@ async function beginMint(res) {
     return res.redirect(authUrl);
 }
 
-async function endMint(req, res, code, state = null) {
+async function endMint(res, req, code, state = null) {
     try {
         const tokens = await exchangeAuthCodeForTokens({ code });
 
@@ -50,6 +50,7 @@ async function endMint(req, res, code, state = null) {
 
         return res.redirect('/dashboard');
     } catch (err) {
+        console.error(err);
         return res.status(500).json({
             error: 'Failed to exchange eBay auth code for tokens',
             details: err.message || String(err),
