@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const session = require('express-session');
 const { getSupabase, isSupabaseConfigured } = require('./supabase/client');
-const { getEbaySignInUrl, exchangeAuthCodeForTokens, getRequestedScopes } = require('./ebay');
+const { getEbayAccessToken, getEbaySignInUrl, exchangeAuthCodeForTokens, getRequestedScopes } = require('./ebay');
 const { getActiveListings } = require('./ebay/ebay');
 const { types, getAspects } = require('./ebay/ebay_categories');
 const { generateImageModel1 } = require('./ebay/openai_image');
@@ -56,6 +56,30 @@ function hydrateEbaySessionToken(req) {
 		process.env.EBAY_REFRESH_TOKEN = req.session.ebayRefreshToken;
 	}
 	return Boolean(process.env.EBAY_ACCESS_TOKEN || req.session.ebayAccessToken);
+}
+
+async function ensureEbayAccessToken(req) {
+	if (process.env.EBAY_ACCESS_TOKEN || req.session.ebayAccessToken) {
+		hydrateEbaySessionToken(req);
+		return true;
+	}
+
+	try {
+		const token = await getEbayAccessToken({
+			forceRefresh: true,
+			environment: process.env.EBAY_ENV || 'PRODUCTION',
+			scopes: process.env.EBAY_SCOPES,
+		});
+		if (token) {
+			process.env.EBAY_ACCESS_TOKEN = token;
+			req.session.ebayAccessToken = token;
+			return true;
+		}
+	} catch (err) {
+		console.error('[ensureEbayAccessToken] Failed:', err.message || err);
+	}
+
+	return false;
 }
 
 app.get('/', (req, res) => {
@@ -129,10 +153,14 @@ app.post('/login', async (req, res) => {
 });
 
 app.get('/dashboard', requireAuth, async (req, res) => {
-	const hasEbayToken = hydrateEbaySessionToken(req);
+	const hasEbayToken = await ensureEbayAccessToken(req);
 
 	if (!hasEbayToken) {
-		return res.redirect('/auth/ebay/login');
+		return res.status(500).render('dashboard', {
+			listings: [],
+			error: 'Unable to mint an eBay access token. Check EBAY_CLIENT_ID and EBAY_CLIENT_SECRET.',
+			currentUser: req.session.user,
+		});
 	}
 
 	let listings = [];
@@ -297,11 +325,19 @@ app.post('/logout', (req, res) => {
 // Basic health check left in for convenience.
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
-app.get('/auth/ebay/login', (req, res) => {
+app.get('/auth/ebay/login', async (req, res) => {
 	try {
-		const state = typeof req.query.state === 'string' ? req.query.state : undefined;
-		const signInUrl = getEbaySignInUrl({ state });
-		return res.redirect(signInUrl);
+		const token = await getEbayAccessToken({
+			forceRefresh: true,
+			environment: process.env.EBAY_ENV || 'PRODUCTION',
+			scopes: process.env.EBAY_SCOPES,
+		});
+		if (token) {
+			process.env.EBAY_ACCESS_TOKEN = token;
+			req.session.ebayAccessToken = token;
+			return res.redirect('/dashboard');
+		}
+		return res.status(500).json({ error: 'Unable to mint eBay access token.' });
 	} catch (err) {
 		return res.status(500).json({ error: err.message || String(err) });
 	}
@@ -318,14 +354,24 @@ app.get('/auth/ebay/callback', async (req, res) => {
 		});
 	}
 
-	if (!code || typeof code !== 'string') {
-		return res.status(400).json({
-			error: 'Missing authorization code from eBay callback',
-			state: state || null,
-		});
-	}
-
 	try {
+		if (!code || typeof code !== 'string') {
+			const token = await getEbayAccessToken({
+				forceRefresh: true,
+				environment: process.env.EBAY_ENV || 'PRODUCTION',
+				scopes: process.env.EBAY_SCOPES,
+			});
+			if (token) {
+				process.env.EBAY_ACCESS_TOKEN = token;
+				req.session.ebayAccessToken = token;
+				return res.redirect('/dashboard');
+			}
+			return res.status(500).json({
+				error: 'Unable to mint eBay access token from callback.',
+				state: state || null,
+			});
+		}
+
 		const tokens = await exchangeAuthCodeForTokens({ code });
 
 		if (tokens.accessToken) {
