@@ -1,7 +1,8 @@
 require("dotenv").config();
 
-const EBAY_TAXONOMY_BASE =
-    "https://api.sandbox.ebay.com/commerce/taxonomy/v1";
+const { getEbayApiBase } = require('./index');
+
+const EBAY_TAXONOMY_BASE = `${getEbayApiBase()}/commerce/taxonomy/v1`;
 const fs = require("fs");
 const path = require("path");
 

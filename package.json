@@ -5,8 +5,9 @@
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
-    "start": "node src/run.js",
+    "start": "node src/server.js",
     "server": "node src/server.js",
+    "token:test": "node src/run.js",
     "ebay:test": "node src/ebay/test_post_listing.js",
     "openai:text": "node src/ebay/openai_prompt.js",
     "openai:image": "node src/ebay/openai_image.js",

@@ -1,22 +1,30 @@
 require('dotenv').config();
 
 const { setupEbayPolicies } = require('./ebay_policies');
-const { getEbaySignInUrl } = require('./index');
+const { getEbayApiBase, getEbaySignInUrl } = require('./index');
 
-const eBayJsonHeaders = {
-    Authorization: `Bearer ${process.env.EBAY_ACCESS_TOKEN}`,
-    Accept: "application/json",
-    "Accept-Language": "en-US",
-    "Content-Language": "en-US"
-};
+function getEbayJsonHeaders() {
+    const token = process.env.EBAY_ACCESS_TOKEN;
+
+    if (!token) {
+        console.warn('[eBay] No EBAY_ACCESS_TOKEN available when building request headers.');
+    }
+
+    return {
+        Authorization: `Bearer ${token || ''}`,
+        Accept: "application/json",
+        "Accept-Language": "en-US",
+        "Content-Language": "en-US"
+    };
+}
 
 async function getAllInventoryItems() {
     try {
         const response = await fetch(
-            "https://api.sandbox.ebay.com/sell/inventory/v1/inventory_item?limit=5&offset=0",
+            `${getEbayApiBase()}/sell/inventory/v1/inventory_item?limit=5&offset=0`,
             {
                 method: "GET",
-                headers: eBayJsonHeaders
+                headers: getEbayJsonHeaders()
             }
         );
 
@@ -55,11 +63,11 @@ async function createLocation(locationKey, locationData) {
     };
 
     const response = await fetch(
-    `https://api.sandbox.ebay.com/sell/inventory/v1/location/${encodeURIComponent(merchantLocationKey)}`,
+    `${getEbayApiBase()}/sell/inventory/v1/location/${encodeURIComponent(merchantLocationKey)}`,
     {
         method: "POST",
         headers: {
-            ...eBayJsonHeaders,
+            ...getEbayJsonHeaders(),
             "Content-Type": "application/json",
         },
         body: JSON.stringify(body)
@@ -91,11 +99,11 @@ async function _createInventoryItem(info) {
     };
 
     const response = await fetch(
-    `https://api.sandbox.ebay.com/sell/inventory/v1/inventory_item/${encodeURIComponent(info.sku)}`,
+    `${getEbayApiBase()}/sell/inventory/v1/inventory_item/${encodeURIComponent(info.sku)}`,
     {
         method: "PUT",
         headers: {
-            ...eBayJsonHeaders,
+            ...getEbayJsonHeaders(),
             "Content-Type": "application/json",
         },
         body: JSON.stringify(body)
@@ -136,11 +144,11 @@ async function _createOffer(info) {
         };
 
     const response = await fetch(
-    "https://api.sandbox.ebay.com/sell/inventory/v1/offer",
+    `${getEbayApiBase()}/sell/inventory/v1/offer`,
     {
         method: "POST",
         headers: {
-            ...eBayJsonHeaders,
+            ...getEbayJsonHeaders(),
             "Content-Type": "application/json",
         },
         body: JSON.stringify(body)
@@ -161,11 +169,11 @@ async function _createOffer(info) {
 
 async function _publishOffer(offerId) {
     const response = await fetch(
-        `https://api.sandbox.ebay.com/sell/inventory/v1/offer/${encodeURIComponent(offerId)}/publish`,
+        `${getEbayApiBase()}/sell/inventory/v1/offer/${encodeURIComponent(offerId)}/publish`,
         {
             method: "POST",
             headers: {
-                ...eBayJsonHeaders,
+                ...getEbayJsonHeaders(),
                 "Content-Type": "application/json",
             }
         }
@@ -227,10 +235,10 @@ async function ebaySetup() {
 }
 async function getOffersForSku(sku) {
     const response = await fetch(
-        `https://api.sandbox.ebay.com/sell/inventory/v1/offer?sku=${encodeURIComponent(sku)}`,
+        `${getEbayApiBase()}/sell/inventory/v1/offer?sku=${encodeURIComponent(sku)}`,
         {
             method: "GET",
-            headers: eBayJsonHeaders
+            headers: getEbayJsonHeaders()
         }
     );
 
@@ -243,12 +251,15 @@ async function getOffersForSku(sku) {
     return data.offers ?? [];
 }
 async function getActiveListings() {
+    const token = process.env.EBAY_ACCESS_TOKEN;
+    console.log('[getActiveListings] mint status:', Boolean(token), token ? `${token.slice(0, 16)}...` : 'missing');
+
     const inventoryResponse = await fetch(
-        "https://api.sandbox.ebay.com/sell/inventory/v1/inventory_item?limit=100&offset=0",
+        `${getEbayApiBase()}/sell/inventory/v1/inventory_item?limit=100&offset=0`,
         {
             method: "GET",
             headers: {
-                ...eBayJsonHeaders,
+                ...getEbayJsonHeaders(),
                 "X-EBAY-C-MARKETPLACE-ID": "EBAY_US",
                 "X-EBAY-C-ENDUSERCTX": "affiliateCampaignId=<ePNCampaignId>,affiliateReferenceId=<referenceId>"
             }

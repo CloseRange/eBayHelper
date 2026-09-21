@@ -59,18 +59,15 @@ function hydrateEbaySessionToken(req) {
 }
 
 async function ensureEbayAccessToken(req) {
-	if (process.env.EBAY_ACCESS_TOKEN || req.session.ebayAccessToken) {
-		hydrateEbaySessionToken(req);
-		return true;
-	}
-
 	try {
+		console.log('[ensureEbayAccessToken] minting fresh eBay token with env:', process.env.EBAY_ENV || 'PRODUCTION');
 		const token = await getEbayAccessToken({
 			forceRefresh: true,
 			environment: process.env.EBAY_ENV || 'PRODUCTION',
 			scopes: process.env.EBAY_SCOPES,
 		});
 		if (token) {
+			console.log('[ensureEbayAccessToken] token minted successfully:', `${token.slice(0, 16)}...`);
 			process.env.EBAY_ACCESS_TOKEN = token;
 			req.session.ebayAccessToken = token;
 			return true;

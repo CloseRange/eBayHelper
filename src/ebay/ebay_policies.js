@@ -1,9 +1,10 @@
 require('dotenv').config();
 
+const { getEbayApiBase } = require('./index');
 
 async function _optIntoBusinessPolicies() {
     const response = await fetch(
-        "https://api.sandbox.ebay.com/sell/account/v1/program/opt_in",
+        `${getEbayApiBase()}/sell/account/v1/program/opt_in`,
         {
             method: "POST",
             headers: {
@@ -78,7 +79,7 @@ async function createFulfillmentPolicy() {
     };
 
     const response = await fetch(
-        "https://api.sandbox.ebay.com/sell/account/v1/fulfillment_policy",
+        `${getEbayApiBase()}/sell/account/v1/fulfillment_policy`,
         {
             method: "POST",
             headers: {
@@ -124,7 +125,7 @@ async function createPaymentPolicy() {
     };
 
     const response = await fetch(
-        "https://api.sandbox.ebay.com/sell/account/v1/payment_policy",
+        `${getEbayApiBase()}/sell/account/v1/payment_policy`,
         {
             method: "POST",
             headers: {
@@ -178,7 +179,7 @@ async function createReturnPolicy() {
     };
 
     const response = await fetch(
-        "https://api.sandbox.ebay.com/sell/account/v1/return_policy",
+        `${getEbayApiBase()}/sell/account/v1/return_policy`,
         {
             method: "POST",
             headers: {
@@ -250,7 +251,7 @@ async function getEbayPolicies() {
         Accept: "application/json"
     };
 
-    const base = "https://api.sandbox.ebay.com/sell/account/v1";
+    const base = `${getEbayApiBase()}/sell/account/v1`;
 
     const [
         fulfillmentResponse,

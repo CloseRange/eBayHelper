@@ -1,6 +1,14 @@
 const querystring = require('querystring');
 const EbayAuthToken = require('ebay-oauth-nodejs-client');
 
+const DEFAULT_EBAY_SCOPES = [
+  'https://api.ebay.com/oauth/api_scope/sell.inventory',
+  'https://api.ebay.com/oauth/api_scope/sell.account',
+  'https://api.ebay.com/oauth/api_scope/sell.fulfillment',
+  'https://api.ebay.com/oauth/api_scope/sell.marketing',
+  'https://api.ebay.com/oauth/api_scope/sell.analytics',
+];
+
 let cachedEbayAccessToken = null;
 let cachedEbayAccessTokenExpiry = 0;
 let cachedEbayEnvironment = null;
@@ -14,11 +22,21 @@ function getEbayBaseUrls() {
   };
 }
 
+function getEbayApiBase() {
+  return getEbayBaseUrls().apiBase;
+}
+
 function getRequestedScopes() {
-  return (process.env.EBAY_SCOPES || '')
-    .split(/\s+/)
-    .map((scope) => scope.trim())
-    .filter(Boolean);
+  const configuredScopes = (process.env.EBAY_SCOPES || '').trim();
+  const scopes = configuredScopes
+    ? configuredScopes.split(/\s+/).map((scope) => scope.trim()).filter(Boolean)
+    : [...DEFAULT_EBAY_SCOPES];
+
+  if (!configuredScopes) {
+    process.env.EBAY_SCOPES = scopes.join(' ');
+  }
+
+  return scopes;
 }
 
 function normalizeEnvironmentValue(value) {
@@ -39,6 +57,8 @@ async function getEbayAccessToken({ forceRefresh = false, environment = process.
     ? scopes
     : String(scopes || '').split(/\s+/).map((scope) => scope.trim()).filter(Boolean);
 
+  const effectiveScopes = requestedScopes.length ? requestedScopes : [...DEFAULT_EBAY_SCOPES];
+
   if (!forceRefresh && cachedEbayAccessToken && cachedEbayEnvironment === normalizedEnvironment && Date.now() < cachedEbayAccessTokenExpiry - 60000) {
     return cachedEbayAccessToken;
   }
@@ -49,7 +69,7 @@ async function getEbayAccessToken({ forceRefresh = false, environment = process.
     redirectUri: process.env.EBAY_REDIRECT_URI || 'https://ebayhelper.onrender.com/auth/ebay/callback',
   });
 
-  const rawToken = await ebayAuthToken.getApplicationToken(normalizedEnvironment, requestedScopes.length ? requestedScopes : undefined);
+  const rawToken = await ebayAuthToken.getApplicationToken(normalizedEnvironment, effectiveScopes);
   const payload = typeof rawToken === 'string' ? JSON.parse(rawToken) : rawToken;
 
   if (!payload || !payload.access_token) {
@@ -131,6 +151,7 @@ async function exchangeAuthCodeForTokens({ code }) {
 
 module.exports = {
   getEbayAccessToken,
+  getEbayApiBase,
   getEbaySignInUrl,
   exchangeAuthCodeForTokens,
   getRequestedScopes,
