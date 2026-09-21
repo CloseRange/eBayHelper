@@ -8,6 +8,8 @@ const { getActiveListings } = require('./ebay/ebay');
 const { types, getAspects } = require('./ebay/ebay_categories');
 const { generateImageModel1 } = require('./ebay/openai_image');
 const { generateSKU, generateListing } = require('./util/post_new_item');
+const { beginMint, endMint, getAccessToken } = require('./ebay/minting');
+
 
 const DEFAULT_LOGIN_EMAIL = 'michael.m.hulbert@gmail.com';
 const DEFAULT_LOGIN_PASSCODE = process.env.LOGIN_PASSCODE || 'passcode';
@@ -61,19 +63,26 @@ function hydrateEbaySessionToken(req) {
 
 async function ensureEbayAccessToken(req) {
 	try {
-		if(process.env.EBAY_ACCESS_TOKEN) {
+		const token = await getAccessToken();
+		if (token) {
+			process.env.EBAY_ACCESS_TOKEN = token;
+			if (req?.session) {
+				req.session.ebayAccessToken = token;
+			}
 			return true;
 		}
 		console.log('[ensureEbayAccessToken] minting fresh eBay token with env:', process.env.EBAY_ENV || 'PRODUCTION');
-		const token = await getEbayAccessToken({
+		const freshToken = await getEbayAccessToken({
 			forceRefresh: true,
 			environment: process.env.EBAY_ENV || 'PRODUCTION',
 			scopes: process.env.EBAY_SCOPES,
 		});
-		if (token) {
-			console.log('[ensureEbayAccessToken] token minted successfully:', `${token.slice(0, 16)}...`);
-			process.env.EBAY_ACCESS_TOKEN = token;
-			req.session.ebayAccessToken = token;
+		if (freshToken) {
+			console.log('[ensureEbayAccessToken] token minted successfully:', `${freshToken.slice(0, 16)}...`);
+			process.env.EBAY_ACCESS_TOKEN = freshToken;
+			if (req?.session) {
+				req.session.ebayAccessToken = freshToken;
+			}
 			return true;
 		}
 	} catch (err) {
@@ -143,8 +152,8 @@ app.post('/login', async (req, res) => {
 			id: data.user.id,
 			email: data.user.email,
 		};
-
-		return res.redirect('/dashboard');
+		return beginMint(res);
+		// return res.redirect('/dashboard');
 	} catch (err) {
 		return res.status(500).render('login', {
 			error: err.message || 'Unable to sign in right now. Please try again.',
@@ -407,9 +416,6 @@ function renderEbaySuccessPage(code="") {
 
 app.get('/auth/ebay/callback', async (req, res) => {
 	const { code, state, error, error_description: errorDescription } = req.query;
-	console.log("CODE GOT! =========");
-	console.log(code);
-	console.log("CODE GOT! =========");
 	if (error) {
 		return res.status(400).json({
 			error: 'eBay authorization failed',
@@ -435,19 +441,7 @@ app.get('/auth/ebay/callback', async (req, res) => {
 				state: state || null,
 			});
 		}
-
-		const tokens = await exchangeAuthCodeForTokens({ code });
-
-		if (tokens.accessToken) {
-			process.env.EBAY_ACCESS_TOKEN = tokens.accessToken;
-			req.session.ebayAccessToken = tokens.accessToken;
-		}
-		if (tokens.refreshToken) {
-			process.env.EBAY_REFRESH_TOKEN = tokens.refreshToken;
-			req.session.ebayRefreshToken = tokens.refreshToken;
-		}
-
-		return res.status(200).send(renderEbaySuccessPage(tokens.accessToken || ''));
+		return endMint(res, code);
 	} catch (err) {
 		return res.status(500).json({
 			error: 'Failed to exchange eBay auth code for tokens',
