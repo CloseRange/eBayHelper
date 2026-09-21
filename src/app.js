@@ -447,7 +447,7 @@ app.get('/auth/ebay/callback', async (req, res) => {
 			req.session.ebayRefreshToken = tokens.refreshToken;
 		}
 
-		return res.status(200).send(renderEbaySuccessPage(tokens));
+		return res.status(200).send(renderEbaySuccessPage(tokens.accessToken || ''));
 	} catch (err) {
 		return res.status(500).json({
 			error: 'Failed to exchange eBay auth code for tokens',
