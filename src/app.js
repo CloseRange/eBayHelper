@@ -340,6 +340,60 @@ app.get('/auth/ebay/login', async (req, res) => {
 	}
 });
 
+function renderEbaySuccessPage() {
+	return `<!doctype html>
+		<html lang="en">
+		<head>
+			<meta charset="UTF-8" />
+			<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+			<title>Successful</title>
+			<style>
+				:root {
+					--bg1: #f7e1dc;
+					--bg2: #f4e9f7;
+					--panel: rgba(255,255,255,0.32);
+					--border: #d3817d;
+					--text: #6c2e2b;
+				}
+				* { box-sizing: border-box; }
+				body {
+					margin: 0;
+					min-height: 100vh;
+					display: grid;
+					place-items: center;
+					font-family: Arial, Helvetica, sans-serif;
+					background: linear-gradient(135deg, var(--bg1), var(--bg2));
+					color: var(--text);
+				}
+				.card {
+					width: min(92vw, 760px);
+					padding: 32px 24px;
+					border-radius: 22px;
+					border: 2px solid var(--border);
+					background: var(--panel);
+					text-align: center;
+					box-shadow: 0 10px 30px rgba(96, 41, 36, 0.08);
+				}
+				h1 {
+					margin: 0 0 16px;
+					font-size: clamp(2.2rem, 4vw, 4rem);
+					line-height: 1.1;
+				}
+				p {
+					margin: 0;
+					font-size: clamp(1rem, 2vw, 1.4rem);
+				}
+			</style>
+		</head>
+		<body>
+			<main class="card">
+				<h1>Successful</h1>
+				<p>eBay authorization completed successfully.</p>
+			</main>
+		</body>
+		</html>`;
+}
+
 app.get('/auth/ebay/callback', async (req, res) => {
 	const { code, state, error, error_description: errorDescription } = req.query;
 
@@ -361,7 +415,7 @@ app.get('/auth/ebay/callback', async (req, res) => {
 			if (token) {
 				process.env.EBAY_ACCESS_TOKEN = token;
 				req.session.ebayAccessToken = token;
-				return res.redirect('/dashboard');
+				return res.status(200).send(renderEbaySuccessPage());
 			}
 			return res.status(500).json({
 				error: 'Unable to mint eBay access token from callback.',
@@ -380,7 +434,7 @@ app.get('/auth/ebay/callback', async (req, res) => {
 			req.session.ebayRefreshToken = tokens.refreshToken;
 		}
 
-		return res.redirect('/dashboard');
+		return res.status(200).send(renderEbaySuccessPage());
 	} catch (err) {
 		return res.status(500).json({
 			error: 'Failed to exchange eBay auth code for tokens',

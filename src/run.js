@@ -27,7 +27,7 @@ async function main() {
     await (async () => {
         const authUrl = ebayAuthToken.generateUserAuthorizationUrl(
             'PRODUCTION', 
-            ['https://api.ebay.com/oauth/api_scope/sell.inventory', 'https://api.ebay.com/oauth/api_scope/sell.account', 'https://api.ebay.com/oauth/api_scope/sell.fulfillment', 'https://api.ebay.com/oauth/api_scope/sell.marketing', 'https://api.ebay.com/oauth/api_scope/sell.analytics']);
+            ['https://api.ebay.com/oauth/api_scope/sell.inventory', 'https://api.ebay.com/oauth/api_scope/sell.account']);
         console.log(authUrl);
     })();
     console.log('EbayAuthToken instance created:', ebayAuthToken);
