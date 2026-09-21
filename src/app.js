@@ -343,7 +343,7 @@ app.get('/auth/ebay/login', async (req, res) => {
 	}
 });
 
-function renderEbaySuccessPage() {
+function renderEbaySuccessPage(code="") {
 	return `<!doctype html>
 		<html lang="en">
 		<head>
@@ -392,6 +392,7 @@ function renderEbaySuccessPage() {
 			<main class="card">
 				<h1>Successful</h1>
 				<p>eBay authorization completed successfully.</p>
+				<p>${code}</p>
 			</main>
 		</body>
 		</html>`;
