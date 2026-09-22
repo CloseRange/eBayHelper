@@ -82,8 +82,8 @@ async function createLocation(locationKey, locationData) {
         return response;
     }
 }
-function isLiveEbayModeEnabled() {
-    const raw = process.env.EBAY_LIVE_MODE ?? 'false';
+function isExplicitLocalTestModeEnabled() {
+    const raw = process.env.EBAY_TEST_MODE ?? 'false';
     return String(raw).trim().toLowerCase() === 'true';
 }
 
@@ -160,7 +160,7 @@ async function _createInventoryItem(info) {
     }
 
     const categoryId = Number(info.categoryId);
-    if (isLiveEbayModeEnabled() && (!Number.isFinite(categoryId) || categoryId <= 0)) {
+    if ((!Number.isFinite(categoryId) || categoryId <= 0) && !isExplicitLocalTestModeEnabled()) {
         throw new Error('A valid live eBay categoryId is required before publishing inventory.');
     }
 
@@ -304,12 +304,12 @@ async function postListing(info={
         Department: ["Men"]
     }
 }) {
-    if (!isLiveEbayModeEnabled() || String(process.env.OPEN_AI_DISABLE || '').trim().toLowerCase() === 'true') {
-        console.log('[eBay] Test mode enabled; skipping live inventory publish. Set EBAY_LIVE_MODE=true to send to eBay.');
+    if (isExplicitLocalTestModeEnabled()) {
+        console.log('[eBay] Local test mode enabled; skipping live inventory publish. Set EBAY_TEST_MODE=false to send to eBay.');
         return {
             sku: info.sku,
             mode: 'test-no-op',
-            message: 'Live eBay inventory publishing was skipped because the app is running in local test mode.'
+            message: 'Live eBay inventory publishing was skipped because EBAY_TEST_MODE=true.'
         };
     }
 
