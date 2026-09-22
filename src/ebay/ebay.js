@@ -210,7 +210,7 @@ async function _createInventoryItem(info) {
     return response;
 }
 async function _createOffer(info) {
-    const body = {
+    const buildBody = () => ({
         sku: info.sku,
         marketplaceId: "EBAY_US",
         format: "FIXED_PRICE",
@@ -232,30 +232,63 @@ async function _createOffer(info) {
         },
 
         listingDuration: "GTC"
-        };
+    });
 
-    const response = await fetch(
-    `${getEbayApiBase()}/sell/inventory/v1/offer`,
-    {
-        method: "POST",
-        headers: {
-            ...getEbayJsonHeaders(),
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body)
+    const sendOffer = async () => {
+        const body = buildBody();
+
+        const response = await fetch(
+            `${getEbayApiBase()}/sell/inventory/v1/offer`,
+            {
+                method: "POST",
+                headers: {
+                    ...getEbayJsonHeaders(),
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(body)
+            }
+        );
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            const message = data?.errors ? JSON.stringify(data.errors) : JSON.stringify(data);
+            console.error("eBay offer error:", response.status, message);
+            return { ok: false, status: response.status, message, data };
+        }
+
+        console.log("Offer created!");
+        return { ok: true, data };
+    };
+
+    const first = await sendOffer();
+
+    if (first.ok) {
+        return first.data;
     }
-    );
 
-    const data = await response.json().catch(() => ({}));
+    const needsPolicyRefresh = String(first.message || '').includes('Fulfillment policy') ||
+        String(first.message || '').includes('valid shipping service option') ||
+        String(first.message || '').includes('err:216118');
 
-    if (!response.ok) {
-        const message = data?.errors ? JSON.stringify(data.errors) : JSON.stringify(data);
-        console.error("eBay offer error:", response.status, message);
-        throw new Error(`eBay offer creation failed: ${message}`);
+    if (needsPolicyRefresh) {
+        console.warn('[eBay] Fulfillment policy is invalid; regenerating eBay business policies and retrying offer creation once.');
+
+        const { fulfillmentPolicyId, paymentPolicyId, returnPolicyId } = await require('./ebay_policies').setupEbayPolicies();
+        process.env.EBAY_FULFILLMENT_POLICY_ID = fulfillmentPolicyId;
+        process.env.EBAY_PAYMENT_POLICY_ID = paymentPolicyId;
+        process.env.EBAY_RETURN_POLICY_ID = returnPolicyId;
+
+        const retry = await sendOffer();
+        if (retry.ok) {
+            return retry.data;
+        }
+
+        const retryMessage = retry?.message ? JSON.stringify(retry.message) : 'Unknown retry error';
+        throw new Error(`eBay offer creation failed after policy refresh: ${retryMessage}`);
     }
 
-    console.log("Offer created!");
-    return data;
+    throw new Error(`eBay offer creation failed: ${first.message}`);
 }
 
 async function _publishOffer(offerId) {
@@ -343,8 +376,22 @@ async function postListing(info={
     };
 }
 async function ebaySetup() {
-    await createLocation();
-    await setupEbayPolicies();
+    await createLocation('home-inventory', {
+        name: 'Main Inventory Location',
+        merchantLocationStatus: 'ENABLED',
+        locationTypes: ['WAREHOUSE'],
+        address: {
+            postalCode: '54901',
+            country: 'US'
+        }
+    });
+
+    const policyIds = await setupEbayPolicies();
+
+    return {
+        locationKey: 'home-inventory',
+        ...policyIds
+    };
 }
 async function getOffersForSku(sku) {
     const response = await fetch(

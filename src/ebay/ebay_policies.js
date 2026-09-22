@@ -63,7 +63,7 @@ async function createFulfillmentPolicy() {
                 shippingServices: [
                     {
                         shippingCarrierCode: "USPS",
-                        shippingServiceCode: "USPSPriority",
+                        shippingServiceCode: "USPSGroundAdvantage",
 
                         shippingCost: {
                             currency: "USD",

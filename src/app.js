@@ -4,7 +4,7 @@ const session = require('express-session');
 const EbayAuthToken = require('ebay-oauth-nodejs-client');
 const { getSupabase, isSupabaseConfigured } = require('./supabase/client');
 const { getEbayAccessToken, getEbaySignInUrl, exchangeAuthCodeForTokens, getRequestedScopes } = require('./ebay');
-const { getActiveListings } = require('./ebay/ebay');
+const { getActiveListings, ebaySetup } = require('./ebay/ebay');
 const { types, getAspects } = require('./ebay/ebay_categories');
 const { generateImageModel1 } = require('./ebay/openai_image');
 const { generateSKU, generateListing } = require('./util/post_new_item');
@@ -125,6 +125,17 @@ app.get('/dashboard', requireAuth, async (req, res) => {
 		error,
 		currentUser: req.session.user,
 	});
+});
+
+app.get('/setupEbay', requireAuth, async (req, res) => {
+	try {
+		await ensureEbayAccessToken(req);
+		await ebaySetup();
+		return res.redirect('/dashboard?setup=success');
+	} catch (err) {
+		console.error('[GET /setupEbay] Failed:', err.message || err);
+		return res.redirect(`/dashboard?setup=error&message=${encodeURIComponent(err.message || 'Unable to set up eBay inventory location and policies.')}`);
+	}
 });
 
 app.get('/create-listing', requireAuth, async (req, res) => {
