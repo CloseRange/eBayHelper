@@ -303,6 +303,21 @@ async function findEbayCategories(query) {
     return data.categorySuggestions ?? [];
 }
 
+async function findLeafEbayCategory(query) {
+    const suggestions = await findEbayCategories(query);
+
+    const chosen = suggestions.find((suggestion) => {
+        const category = suggestion?.category || suggestion;
+        return category?.leafCategory === true || category?.leafCategory === "true";
+    }) || suggestions[0];
+
+    if (!chosen) {
+        throw new Error(`No eBay category found for ${query}`);
+    }
+
+    return chosen.category || chosen;
+}
+
 
 async function getEbayCategoryAspects(categoryId) {
     const treeId = await getCategoryTreeId();
@@ -353,22 +368,11 @@ async function getAspects(type) {
     );
 
 
-    const suggestions =
-        await findEbayCategories(
-            type.ebayQuery
-        );
+    const category = await findLeafEbayCategory(type.ebayQuery);
 
-
-    if (!suggestions.length) {
-        throw new Error(
-            `No eBay category found for ${type.name}`
-        );
+    if (!category?.categoryId) {
+        throw new Error(`No valid live leaf eBay category found for ${type.name}`);
     }
-
-
-    const category =
-        suggestions[0].category;
-
 
     const ebayAspects =
         await getEbayCategoryAspects(

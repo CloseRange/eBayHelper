@@ -82,40 +82,121 @@ async function createLocation(locationKey, locationData) {
         return response;
     }
 }
+function isLiveEbayModeEnabled() {
+    const raw = process.env.EBAY_LIVE_MODE ?? 'false';
+    return String(raw).trim().toLowerCase() === 'true';
+}
+
+function normalizeEbayCondition(value) {
+    const normalized = String(value || '').trim().toUpperCase();
+    const allowed = {
+        NEW: 'NEW',
+        LIKE_NEW: 'LIKE_NEW',
+        USED_EXCELLENT: 'USED_EXCELLENT',
+        PRE_OWNED_EXCELLENT: 'USED_EXCELLENT',
+        USED_VERY_GOOD: 'USED_VERY_GOOD',
+        PRE_OWNED_VERY_GOOD: 'USED_VERY_GOOD',
+        USED_GOOD: 'USED_GOOD',
+        PRE_OWNED_GOOD: 'USED_GOOD',
+        USED_ACCEPTABLE: 'USED_ACCEPTABLE',
+        PRE_OWNED_ACCEPTABLE: 'USED_ACCEPTABLE'
+    };
+
+    return allowed[normalized] || 'NEW';
+}
+
+function normalizeEbayAspects(aspects) {
+    if (!aspects || typeof aspects !== 'object') {
+        return {};
+    }
+
+    const normalized = {};
+
+    for (const [key, value] of Object.entries(aspects)) {
+        if (!key || typeof key !== 'string') {
+            continue;
+        }
+
+        const values = Array.isArray(value)
+            ? value
+            : [value];
+
+        const cleanValues = values
+            .map((entry) => String(entry).trim())
+            .filter(Boolean)
+            .slice(0, 10);
+
+        if (cleanValues.length) {
+            normalized[String(key).trim()] = cleanValues;
+        }
+    }
+
+    return normalized;
+}
+
+function normalizeEbayImageUrls(imageUrls) {
+    if (!Array.isArray(imageUrls)) {
+        return [];
+    }
+
+    return imageUrls
+        .map((url) => typeof url === 'string' ? url.trim() : '')
+        .filter((url) => /^https?:\/\//i.test(url))
+        .slice(0, 12);
+}
+
 async function _createInventoryItem(info) {
-    const validImageUrls = Array.isArray(info.imageUrls)
-        ? info.imageUrls.filter((url) => typeof url === 'string' && url.trim() !== '')
-        : [];
+    const validImageUrls = normalizeEbayImageUrls(info.imageUrls);
 
     if (!validImageUrls.length) {
         throw new Error('No valid image URLs were provided for the eBay inventory item.');
     }
 
-    const body = {
-    product: {
-        title: info.title,
-        description: info.description,
-        imageUrls: validImageUrls,
-        aspects: info.aspects
-    },
-    condition: info.condition,
-    availability: {
-        shipToLocationAvailability: {
-        quantity: 1
-        }
+    const title = String(info.title || '').replace(/\s+/g, ' ').trim();
+    const description = String(info.description || '').replace(/\s+/g, ' ').trim();
+
+    if (!title || !description) {
+        throw new Error('eBay inventory item requires a non-empty title and description.');
     }
+
+    const categoryId = Number(info.categoryId);
+    if (isLiveEbayModeEnabled() && (!Number.isFinite(categoryId) || categoryId <= 0)) {
+        throw new Error('A valid live eBay categoryId is required before publishing inventory.');
+    }
+
+    const body = {
+        product: {
+            title,
+            description,
+            imageUrls: validImageUrls,
+            aspects: normalizeEbayAspects(info.aspects)
+        },
+        condition: normalizeEbayCondition(info.condition),
+        availability: {
+            shipToLocationAvailability: {
+                quantity: 1
+            }
+        }
     };
 
+    console.log('[eBay] Inventory payload:', JSON.stringify({
+        sku: info.sku,
+        condition: body.condition,
+        title: body.product.title,
+        imageCount: body.product.imageUrls.length,
+        aspectCount: Object.keys(body.product.aspects).length
+    }, null, 2));
+
     const response = await fetch(
-    `${getEbayApiBase()}/sell/inventory/v1/inventory_item/${encodeURIComponent(info.sku)}`,
-    {
-        method: "PUT",
-        headers: {
-            ...getEbayJsonHeaders(),
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body)
-    }
+        `${getEbayApiBase()}/sell/inventory/v1/inventory_item/${encodeURIComponent(info.sku)}`,
+        {
+            method: "PUT",
+            headers: {
+                ...getEbayJsonHeaders(),
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(body)
+        }
     );
 
     if (!response.ok) {
@@ -223,7 +304,29 @@ async function postListing(info={
         Department: ["Men"]
     }
 }) {
-    // const locationResponse = await _createLocation();
+    if (!isLiveEbayModeEnabled() || String(process.env.OPEN_AI_DISABLE || '').trim().toLowerCase() === 'true') {
+        console.log('[eBay] Test mode enabled; skipping live inventory publish. Set EBAY_LIVE_MODE=true to send to eBay.');
+        return {
+            sku: info.sku,
+            mode: 'test-no-op',
+            message: 'Live eBay inventory publishing was skipped because the app is running in local test mode.'
+        };
+    }
+
+    try {
+        await createLocation('home-inventory', {
+            name: 'Main Inventory Location',
+            merchantLocationStatus: 'ENABLED',
+            locationTypes: ['WAREHOUSE'],
+            address: {
+                postalCode: '54901',
+                country: 'US'
+            }
+        });
+    } catch (error) {
+        console.warn('[eBay] inventory location setup skipped or failed:', error.message || error);
+    }
+
     await _createInventoryItem(info);
     const offer = await _createOffer(info);
 
