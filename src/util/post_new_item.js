@@ -169,6 +169,13 @@ async function generateListing(frontImage64, backImage64, tagImage64, sku, info)
         //     aspects: info.features || {}
         // });
 
+        const validImageUrls = [modalAUrl, modalBUrl, frontPublicUrl, backPublicUrl, tagPublicUrl]
+            .filter((url) => typeof url === 'string' && url.trim() !== '');
+
+        if (!validImageUrls.length) {
+            throw new Error('No valid listing images were generated for the eBay inventory item.');
+        }
+
         await postListing({
             price: normalizedInfo.price || 9.99,
             title: listingText.title || `Pre-owned ${info.category || "item"}`,
@@ -176,7 +183,7 @@ async function generateListing(frontImage64, backImage64, tagImage64, sku, info)
             description: listingText.description || `Pre-owned ${info.category || "item"} in good condition.`,
             categoryId: ebayCategoryId,
             condition: 'PRE_OWNED_EXCELLENT',
-            imageUrls: [modalAUrl, modalBUrl, frontPublicUrl, backPublicUrl, tagPublicUrl],
+            imageUrls: validImageUrls,
             aspects: aspects
         });
         return {

@@ -27,6 +27,8 @@ const SUPPORTED_IMAGE_FORMATS = new Set([
 async function cleanupProductPhoto(imageData) {
     // Keep the original exactly as provided so we can fall back to it.
     const originalImage = imageData;
+    return imageData;
+    // The rest of the function is currently unreachable due to the early return.
 
     try {
         if (!imageData || typeof imageData !== "string") {

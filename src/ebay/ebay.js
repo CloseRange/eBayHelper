@@ -83,11 +83,19 @@ async function createLocation(locationKey, locationData) {
     }
 }
 async function _createInventoryItem(info) {
+    const validImageUrls = Array.isArray(info.imageUrls)
+        ? info.imageUrls.filter((url) => typeof url === 'string' && url.trim() !== '')
+        : [];
+
+    if (!validImageUrls.length) {
+        throw new Error('No valid image URLs were provided for the eBay inventory item.');
+    }
+
     const body = {
     product: {
         title: info.title,
         description: info.description,
-        imageUrls: info.imageUrls,
+        imageUrls: validImageUrls,
         aspects: info.aspects
     },
     condition: info.condition,
@@ -111,12 +119,14 @@ async function _createInventoryItem(info) {
     );
 
     if (!response.ok) {
-        const error = await response.text();
-        console.error("eBay error:", response.status, error);
-    } else {
-        console.log("Inventory item created/updated");
-        return response;
+        const errorText = await response.text();
+        const errorMessage = `eBay inventory item create failed: ${response.status} ${errorText}`;
+        console.error("eBay error:", response.status, errorText);
+        throw new Error(errorMessage);
     }
+
+    console.log("Inventory item created/updated");
+    return response;
 }
 async function _createOffer(info) {
     const body = {
