@@ -94,18 +94,22 @@ async function generateListing(frontImage64, backImage64, tagImage64, sku, info)
         }
         let modalAUrl = null;
         let modalBUrl = null;
-        if(genData != null) {
+        if (genData?.images) {
             try {
-                modalAUrl = await db.uploadBase64ImageToBucket({
-                    bucketName: 'listing-photos',
-                    path: `${info.category}/${sku}-modalA-${id}.jpg`,
-                    base64Data: genData.images.photoA,
-                });
-                modalBUrl = await db.uploadBase64ImageToBucket({
-                    bucketName: 'listing-photos',
-                    path: `${info.category}/${sku}-modalB-${id}.jpg`,
-                    base64Data: genData.images.photoB,
-                });
+                if (genData.images.photoA) {
+                    modalAUrl = await db.uploadBase64ImageToBucket({
+                        bucketName: 'listing-photos',
+                        path: `${info.category}/${sku}-modalA-${id}.jpg`,
+                        base64Data: genData.images.photoA,
+                    });
+                }
+                if (genData.images.photoB) {
+                    modalBUrl = await db.uploadBase64ImageToBucket({
+                        bucketName: 'listing-photos',
+                        path: `${info.category}/${sku}-modalB-${id}.jpg`,
+                        base64Data: genData.images.photoB,
+                    });
+                }
             } catch (err) {
                 console.error('Error uploading generated images to Supabase:', err);
                 throw new Error('Failed to upload generated images. Please try again later.');
@@ -156,7 +160,10 @@ async function generateListing(frontImage64, backImage64, tagImage64, sku, info)
             aspects: info.features || {}
         });
 
-        await db.addListingImages(sku, [modalAUrl, modalBUrl, frontPublicUrl, backPublicUrl, tagPublicUrl]);
+        const listingImages = [modalAUrl, modalBUrl, frontPublicUrl, backPublicUrl, tagPublicUrl]
+            .filter((url) => typeof url === 'string' && url.trim() !== '');
+
+        await db.addListingImages(sku, listingImages);
 
         // await postListing({
         //     price: info.price || 9.99,

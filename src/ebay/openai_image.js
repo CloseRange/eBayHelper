@@ -253,6 +253,62 @@ function randomItem(array) {
     ];
 }
 
+function isOpenAIDisabled() {
+    const rawValue =
+        process.env.OPEN_AI_DISABLE ??
+        process.env.OPENAI_DISABLE ??
+        process.env.OPEN_AI_DISABLED ??
+        "false";
+
+    return [
+        "1",
+        "true",
+        "yes",
+        "on"
+    ].includes(
+        String(rawValue).trim().toLowerCase()
+    );
+}
+
+function getDefaultListingText({ category, features = {} }) {
+    const categoryName =
+        String(category || "Clothing").trim() || "Clothing";
+
+    const featureValue = (key, fallback) => {
+        const direct = features?.[key] ?? features?.[key.toLowerCase()] ?? features?.[key.toUpperCase()];
+
+        if (Array.isArray(direct)) {
+            return direct.find(v => v !== undefined && v !== null && String(v).trim()) ?? fallback;
+        }
+
+        return (direct !== undefined && direct !== null && String(direct).trim())
+            ? String(direct)
+            : fallback;
+    };
+
+    const brand = featureValue("Brand", "Brand");
+    const color = featureValue("Color", "Neutral");
+    const size = featureValue("Size", "M");
+
+    const titleOptions = [
+        `${brand} ${categoryName} ${size}`,
+        `${brand} ${color} ${categoryName} ${size}`,
+        `${categoryName} ${color} ${size}`,
+        `${brand} ${categoryName} - ${color}`
+    ];
+
+    const descriptionOptions = [
+        `Pre-owned ${color} ${categoryName} in size ${size}. This is a test listing using the supplied photos and default values while OpenAI generation is disabled.`,
+        `${brand} ${categoryName} in ${color}, size ${size}. This is a default listing generated for local testing with the provided photos only.`,
+        `This ${color.toLowerCase()} ${categoryName.toLowerCase()} is a size ${size} test listing. OpenAI generation is disabled, so the provided photos are used as the product references.`
+    ];
+
+    return {
+        title: randomItem(titleOptions),
+        description: randomItem(descriptionOptions)
+    };
+}
+
 
 function getRandomVariationHint() {
     const hairIdeas = [
@@ -1129,6 +1185,26 @@ async function generateImageModel1(
     console.log(
         "[generateImageModel1] starting..."
     );
+
+    if (isOpenAIDisabled()) {
+        console.log(
+            "[generateImageModel1] OpenAI disabled; using provided front/back photos as the default test images."
+        );
+
+        return {
+            modelDescription:
+                "default test generation",
+
+            pose2Description: "",
+
+            variationHint: "",
+
+            images: {
+                photoA: imageDataFront || null,
+                photoB: imageDataBack || null
+            }
+        };
+    }
 
 
     // ========================================================
@@ -2078,6 +2154,17 @@ async function generateListingText({
     condition = null,
     extraDetails = null
 }) {
+    if (isOpenAIDisabled()) {
+        console.log(
+            "[generateListingText] OpenAI disabled; using default listing text fallback."
+        );
+
+        return getDefaultListingText({
+            category,
+            features
+        });
+    }
+
     const frontImage = await toDataUrl(
         imageDataFront,
         "image/png"

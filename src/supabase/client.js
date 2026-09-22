@@ -39,8 +39,12 @@ async function getAllListingSkus() {
 async function uploadBase64ImageToBucket({ bucketName, path, base64Data, mimeType = 'image/jpeg' }) {
   const client = getSupabase();
 
-  if (!bucketName || !path || !base64Data) {
-    throw new Error('bucketName, path, and base64Data are required.');
+  if (!bucketName || !path) {
+    throw new Error('bucketName and path are required.');
+  }
+
+  if (!base64Data) {
+    return null;
   }
 
   const matches = base64Data.match(/^data:(image\/\w+);base64,(.*)$/);
