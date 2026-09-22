@@ -850,21 +850,31 @@ h1 {
   font-size: clamp(1.8rem, 7vw, 2.4rem);
 }
 
-.logout-form {
+.mint-form {
   margin-left: auto;
 }
 
-.logout-button,
+.mint-button,
 .back-link {
   appearance: none;
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.75);
   color: var(--text-main);
   border-radius: 999px;
-  padding: 8px 12px;
+  padding: 8px 10px;
   font-weight: 700;
   text-decoration: none;
   font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.mint-button img {
+  width: 18px;
+  height: 18px;
+  display: block;
 }
 
 .status-banner {

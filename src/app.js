@@ -39,15 +39,17 @@ app.use(
 );
 
 app.use((req, res, next) => {
+	if (!req.session.user) {
+		req.session.user = {
+			id: 'local-dev-user',
+			email: DEFAULT_LOGIN_EMAIL,
+		};
+	}
 	res.locals.currentUser = req.session.user || null;
 	next();
 });
 
 function requireAuth(req, res, next) {
-	if (!req.session.user) {
-		return res.redirect('/login');
-	}
-
 	return next();
 }
 
@@ -93,74 +95,7 @@ async function ensureEbayAccessToken(req) {
 }
 
 app.get('/', (req, res) => {
-	if (req.session.user) {
-		return res.redirect('/dashboard');
-	}
-
-	return res.redirect('/login');
-});
-
-app.get('/login', (req, res) => {
-	if (req.session.user) {
-		return res.redirect('/dashboard');
-	}
-
-	return res.render('login', {
-		error: null,
-		email: DEFAULT_LOGIN_EMAIL,
-	});
-});
-
-app.post('/login', async (req, res) => {
-	const email = DEFAULT_LOGIN_EMAIL;
-	const password = typeof req.body.password === 'string' ? req.body.password : '';
-
-	if (!password) {
-		return res.status(400).render('login', {
-			error: 'Please enter your passcode.',
-			email,
-		});
-	}
-
-	if (password === DEFAULT_LOGIN_PASSCODE) {
-		req.session.user = {
-			id: 'local-dev-user',
-			email,
-		};
-		return req.session.save(() => {
-			res.redirect('/dashboard');
-		});
-	}
-
-	if (!isSupabaseConfigured()) {
-		return res.status(401).render('login', {
-			error: 'Invalid passcode.',
-			email,
-		});
-	}
-
-	try {
-		const supabase = getSupabase();
-		const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-
-		if (error || !data.user) {
-			return res.status(401).render('login', {
-				error: 'Invalid email or password.',
-				email,
-			});
-		}
-
-		req.session.user = {
-			id: data.user.id,
-			email: data.user.email,
-		};
-		return res.redirect('/dashboard');
-	} catch (err) {
-		return res.status(500).render('login', {
-			error: err.message || 'Unable to sign in right now. Please try again.',
-			email,
-		});
-	}
+	return res.redirect('/dashboard');
 });
 
 app.get('/dashboard', requireAuth, async (req, res) => {
@@ -329,7 +264,7 @@ app.post('/api/generate-listing-images', requireAuth, async (req, res) => {
 
 app.post('/logout', (req, res) => {
 	req.session.destroy(() => {
-		res.redirect('/login');
+		res.redirect('/dashboard');
 	});
 });
 
