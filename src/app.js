@@ -154,10 +154,7 @@ app.post('/login', async (req, res) => {
 			id: data.user.id,
 			email: data.user.email,
 		};
-		return req.session.save(() => {
-			beginMint(res);
-		});
-		// return res.redirect('/dashboard');
+		return res.redirect('/dashboard');
 	} catch (err) {
 		return res.status(500).render('login', {
 			error: err.message || 'Unable to sign in right now. Please try again.',

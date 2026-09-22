@@ -57,7 +57,7 @@ async function endMint(res, req, code, state = null) {
             });
         }
 
-        return res.redirect('/dashboard');
+        return res.redirect('/login');
     } catch (err) {
         console.error(err);
         return res.status(500).json({
