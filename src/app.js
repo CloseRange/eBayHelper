@@ -338,19 +338,15 @@ app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
 app.get('/auth/ebay/login', async (req, res) => {
 	try {
-		const ebayAuthToken = new EbayAuthToken({
-			clientId: process.env.EBAY_CLIENT_ID,
-			clientSecret: process.env.EBAY_CLIENT_SECRET,
-			redirectUri: process.env.EBAY_REDIRECT_URI,
-		});
+		return beginMint(res);
+	} catch (err) {
+		return res.status(500).json({ error: err.message || String(err) });
+	}
+});
 
-		const scopes = getRequestedScopes();
-		const authUrl = ebayAuthToken.generateUserAuthorizationUrl('PRODUCTION', scopes, {
-			state: 'custom-state-value',
-			prompt: 'login',
-		});
-
-		return res.redirect(authUrl);
+app.post('/auth/ebay/login', async (req, res) => {
+	try {
+		return beginMint(res);
 	} catch (err) {
 		return res.status(500).json({ error: err.message || String(err) });
 	}
