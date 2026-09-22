@@ -48,6 +48,15 @@ async function endMint(res, req, code, state = null) {
             }
         }
 
+        if (req?.session) {
+            return req.session.save((err) => {
+                if (err) {
+                    console.error('[endMint] session save failed:', err);
+                }
+                return res.redirect('/dashboard');
+            });
+        }
+
         return res.redirect('/dashboard');
     } catch (err) {
         console.error(err);

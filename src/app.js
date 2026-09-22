@@ -127,7 +127,9 @@ app.post('/login', async (req, res) => {
 			id: 'local-dev-user',
 			email,
 		};
-		return res.redirect('/dashboard');
+		return req.session.save(() => {
+			res.redirect('/dashboard');
+		});
 	}
 
 	if (!isSupabaseConfigured()) {
@@ -152,7 +154,9 @@ app.post('/login', async (req, res) => {
 			id: data.user.id,
 			email: data.user.email,
 		};
-		return beginMint(res);
+		return req.session.save(() => {
+			beginMint(res);
+		});
 		// return res.redirect('/dashboard');
 	} catch (err) {
 		return res.status(500).render('login', {
