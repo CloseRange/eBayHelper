@@ -99,13 +99,24 @@ app.get('/', (req, res) => {
 });
 
 app.get('/settings', requireAuth, async (req, res) => {
-	const shouldViewLogs = String(req.query.view || '').toLowerCase() === 'logs';
-	const logs = shouldViewLogs ? await getLogs() : [];
-
 	return res.render('settings', {
 		currentUser: req.session.user,
+	});
+});
+
+app.get('/settings/logs', requireAuth, async (req, res) => {
+	let logs = [];
+
+	try {
+		logs = await getLogs();
+	} catch (err) {
+		console.warn('[GET /settings/logs] Unable to load logs:', err.message || err);
+		logs = [];
+	}
+
+	return res.render('logs', {
+		currentUser: req.session.user,
 		logs,
-		showLogs: shouldViewLogs,
 	});
 });
 
@@ -167,12 +178,10 @@ app.get('/dashboard', requireAuth, async (req, res) => {
 
 app.get('/setupEbay', requireAuth, async (req, res) => {
 	try {
-		await ensureEbayAccessToken(req);
-		await ebaySetup();
-		return res.redirect('/dashboard?setup=success');
+		return await beginMint(res);
 	} catch (err) {
 		console.error('[GET /setupEbay] Failed:', err.message || err);
-		return res.redirect(`/dashboard?setup=error&message=${encodeURIComponent(err.message || 'Unable to set up eBay inventory location and policies.')}`);
+		return res.redirect(`/dashboard?setup=error&message=${encodeURIComponent(err.message || 'Unable to start eBay auth flow.')}`);
 	}
 });
 

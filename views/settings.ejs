@@ -8,11 +8,15 @@
   </head>
   <body>
     <div class="page-shell narrow-shell">
-      <header class="topbar compact-topbar">
-        <div class="brand-lockup">
+      <header class="wizard-header">
+        <div class="wizard-title-block">
           <p class="eyebrow">miyo threads</p>
           <h1>Settings</h1>
         </div>
+
+        <a class="back-button" href="/dashboard" aria-label="Back to dashboard">
+          <img src="/icons/arrow-big-left.svg" alt="Back to dashboard" />
+        </a>
       </header>
 
       <main class="wizard-card">
@@ -27,36 +31,8 @@
             Mint eBay access token
           </a>
 
-          <a class="secondary-button" href="/settings?view=logs">View logs</a>
-          <a class="back-link" href="/dashboard">Back to dashboard</a>
+          <a class="secondary-button" href="/settings/logs">View logs</a>
         </div>
-
-        <% if (showLogs) { %>
-          <section class="logs-panel" aria-label="System logs">
-            <div class="logs-header">
-              <h3>Recent logs</h3>
-            </div>
-
-            <% if (!logs || !logs.length) { %>
-              <div class="inline-message muted">No log entries found.</div>
-            <% } else { %>
-              <div class="log-list" role="list">
-                <% logs.forEach((log) => { %>
-                  <div class="log-entry" role="listitem">
-                    <div class="log-meta">
-                      <span class="log-badge" style="background: <%= log.color || '#8B8B9E' %>; color: #fff;">
-                        <%= log.type || 'LOG' %>
-                      </span>
-                      <span class="log-caller"><%= log.caller || 'unknown' %></span>
-                      <span class="log-time"><%= log.created_at ? new Date(log.created_at).toLocaleString() : '—' %></span>
-                    </div>
-                    <p class="log-message"><%= log.message || 'No message' %></p>
-                  </div>
-                <% }); %>
-              </div>
-            <% } %>
-          </section>
-        <% } %>
       </main>
     </div>
   </body>

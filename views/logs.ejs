@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Miyo Threads | Logs</title>
+    <link rel="stylesheet" href="/css/listings.css" />
+  </head>
+  <body>
+    <div class="page-shell narrow-shell">
+      <header class="wizard-header">
+        <div class="wizard-title-block">
+          <p class="eyebrow">miyo threads</p>
+          <h1>Logs</h1>
+        </div>
+
+        <a class="back-button" href="/settings" aria-label="Back to settings">
+          <img src="/icons/arrow-big-left.svg" alt="Back to settings" />
+        </a>
+      </header>
+
+      <main class="wizard-card">
+        <div class="section-heading">
+          <p class="eyebrow muted">Activity</p>
+          <h2>Recent system logs</h2>
+        </div>
+
+        <% if (!logs || !logs.length) { %>
+          <div class="inline-message muted">No log entries found.</div>
+        <% } else { %>
+          <div class="logs-table" role="table" aria-label="System logs table">
+            <div class="log-table-row header" role="row">
+              <span role="columnheader">Time</span>
+              <span role="columnheader">Caller</span>
+              <span role="columnheader">Type</span>
+              <span role="columnheader">Message</span>
+            </div>
+
+            <% logs.forEach((log) => { %>
+              <div class="log-table-row" role="row">
+                <span class="log-time" role="cell"><%= log.created_at ? new Date(log.created_at).toLocaleString() : '—' %></span>
+                <span class="log-caller" role="cell"><%= log.caller || 'unknown' %></span>
+                <span role="cell">
+                  <span class="log-badge" style="background: <%= log.color || '#8B8B9E' %>;">
+                    <%= log.type || 'LOG' %>
+                  </span>
+                </span>
+                <span class="log-message" role="cell"><%= log.message || 'No message' %></span>
+              </div>
+            <% }); %>
+          </div>
+        <% } %>
+      </main>
+    </div>
+  </body>
+</html>

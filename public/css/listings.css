@@ -86,18 +86,28 @@ img {
   flex: 1;
 }
 
-.close-button {
+.close-button,
+.back-button {
   width: 38px;
   height: 38px;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-size: 2rem;
-  line-height: 1;
   text-decoration: none;
   color: var(--text-main);
   background: rgba(255, 255, 255, 0.7);
   border: 1px solid var(--border);
+}
+
+.close-button {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.back-button img {
+  width: 18px;
+  height: 18px;
+  display: block;
 }
 
 .wizard-steps {
@@ -1026,26 +1036,40 @@ h1 {
   font-size: 1rem;
 }
 
-.log-list {
+.logs-table {
   display: grid;
-  gap: 10px;
-}
-
-.log-entry {
+  gap: 0;
   border: 1px solid var(--border);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.85);
-  padding: 12px 12px 10px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.8);
 }
 
-.log-meta {
-  display: flex;
-  align-items: center;
+.log-table-row {
+  display: grid;
+  grid-template-columns: 120px 140px 86px minmax(0, 1fr);
   gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 8px;
-  font-size: 0.74rem;
+  align-items: start;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(233, 217, 245, 0.75);
+  font-size: 0.75rem;
+}
+
+.log-table-row:last-child {
+  border-bottom: none;
+}
+
+.log-table-row.header {
+  background: rgba(255, 255, 255, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 800;
   color: var(--text-secondary);
+}
+
+.log-table-row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .log-badge {
@@ -1055,9 +1079,10 @@ h1 {
   min-width: 60px;
   padding: 4px 8px;
   border-radius: 999px;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 800;
   letter-spacing: 0.04em;
+  color: #fff;
 }
 
 .log-caller {
@@ -1066,8 +1091,6 @@ h1 {
 }
 
 .log-time {
-  margin-left: auto;
-  font-size: 0.68rem;
   color: var(--text-muted);
 }
 
