@@ -155,10 +155,17 @@ async function generateListing(frontImage64, backImage64, tagImage64, sku, info)
         db.updateListingState(sku, 7, 'N/A');
         const bin = sku.split('-')[0];
         const sn = sku.split('-')[1];
+        const priceRates = await db.getPriceRates();
+        const basePriceRate = (priceRates || []).find((rate) => Number(rate.id) === 1);
+        const defaultBasePrice = Number(basePriceRate?.price);
+        const initialPrice = Number.isFinite(defaultBasePrice) && defaultBasePrice > 0
+            ? defaultBasePrice
+            : 10;
+
         const listing = await db.createListing({
             title: listingText.title || `Pre-owned ${info.category || "item"}`,
             description: listingText.description || `Pre-owned ${info.category || "item"} in good condition.`,
-            price: info.price || 9.99,
+            price: info.price !== undefined && info.price !== null ? Number(info.price) : initialPrice,
             bin: bin,
             sn: sn,
             sku: sku,
@@ -190,8 +197,12 @@ async function generateListing(frontImage64, backImage64, tagImage64, sku, info)
             throw new Error('No valid listing images were generated for the eBay inventory item.');
         }
 
+        const listingPrice = Number.isFinite(Number(info.price)) && Number(info.price) > 0
+            ? Number(info.price)
+            : initialPrice;
+
         await postListing({
-            price: normalizedInfo.price || 9.99,
+            price: normalizedInfo.price !== undefined && normalizedInfo.price !== null ? Number(normalizedInfo.price) : listingPrice,
             title: listingText.title || `Pre-owned ${info.category || "item"}`,
             sku: sku,
             description: listingText.description || `Pre-owned ${info.category || "item"} in good condition.`,

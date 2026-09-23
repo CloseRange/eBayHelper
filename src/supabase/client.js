@@ -204,6 +204,128 @@ async function getLogs({ limit = 200 } = {}) {
   return [];
 }
 
+async function getPriceRates() {
+  const client = getSupabase();
+  const { data, error } = await client
+    .from('price_rates')
+    .select('id, price, days_to_change')
+    .order('id', { ascending: true });
+
+  if (error) {
+    console.error('[getPriceRates] Supabase error:', error);
+    return [];
+  }
+
+  return Array.isArray(data) ? data : [];
+}
+
+async function getListingsForPriceRateCheck() {
+  const client = getSupabase();
+  const { data, error } = await client
+    .from('listing')
+    .select('sku, price, created_at')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('[getListingsForPriceRateCheck] Supabase error:', error);
+    return [];
+  }
+
+  return Array.isArray(data) ? data : [];
+}
+
+async function savePriceRate({ id, price, days_to_change }) {
+  const client = getSupabase();
+  const numericPrice = Number(price);
+  const isProtectedBaseRate = Number(id) === 1;
+  const numericDays = isProtectedBaseRate ? 0 : Number(days_to_change);
+
+  if (!Number.isFinite(numericPrice) || numericPrice < 0) {
+    throw new Error('Price must be a valid number greater than or equal to 0.');
+  }
+
+  if (!isProtectedBaseRate && (!Number.isInteger(numericDays) || numericDays < 0)) {
+    throw new Error('Days to change must be a whole number greater than or equal to 0.');
+  }
+
+  const sanitizedPrice = Number(numericPrice.toFixed(2));
+
+  if (isProtectedBaseRate) {
+    const { data, error } = await client
+      .from('price_rates')
+      .update({
+        price: sanitizedPrice,
+        days_to_change: 0,
+      })
+      .eq('id', 1)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
+  }
+
+  if (id) {
+    const { data, error } = await client
+      .from('price_rates')
+      .update({
+        price: sanitizedPrice,
+        days_to_change: numericDays,
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
+  }
+
+  const { data, error } = await client
+    .from('price_rates')
+    .insert({
+      price: sanitizedPrice,
+      days_to_change: numericDays,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+async function deletePriceRate(id) {
+  const client = getSupabase();
+  const numericId = Number(id);
+
+  if (!Number.isInteger(numericId) || numericId <= 0) {
+    throw new Error('Invalid price rate id.');
+  }
+
+  if (numericId === 1) {
+    throw new Error('ID 1 is protected and cannot be deleted.');
+  }
+
+  const { error } = await client
+    .from('price_rates')
+    .delete()
+    .eq('id', numericId);
+
+  if (error) {
+    throw error;
+  }
+
+  return true;
+}
+
 async function getListingDetailsBySku(sku) {
   const client = getSupabase();
   const normalizedSku = typeof sku === 'string' ? sku.trim() : '';
@@ -471,6 +593,10 @@ module.exports = {
   getDashboardListings,
   getPendingListings,
   getLogs,
+  getPriceRates,
+  getListingsForPriceRateCheck,
+  savePriceRate,
+  deletePriceRate,
   getListingDetailsBySku,
   uploadBase64ImageToBucket,
   createListing,

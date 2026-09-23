@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Miyo Threads | Price Rates</title>
+    <link rel="stylesheet" href="/css/listings.css" />
+  </head>
+  <body>
+    <div class="page-shell narrow-shell">
+      <header class="wizard-header">
+        <div class="wizard-title-block">
+          <p class="eyebrow">miyo threads</p>
+          <h1>Price rates</h1>
+        </div>
+
+        <a class="back-button" href="/settings" aria-label="Back to settings">
+          <img src="/icons/arrow-big-left.svg" alt="Back to settings" />
+        </a>
+      </header>
+
+      <main class="wizard-card">
+        <% if (error) { %>
+          <div class="status-banner error"><%= error %></div>
+        <% } %>
+
+        <% if (success) { %>
+          <div class="status-banner success"><%= success %></div>
+        <% } %>
+
+        <div class="section-heading">
+          <p class="eyebrow muted">Pricing</p>
+          <h2>Manage price ladder</h2>
+        </div>
+
+        <form method="post" action="/settings/prices" class="price-rates-form">
+          <div class="price-rates-table" role="table" aria-label="Price rates table">
+            <div class="price-rates-row header" role="row">
+              <span role="columnheader">Price</span>
+              <span role="columnheader">Days</span>
+              <span role="columnheader" class="price-rate-header-action">Actions</span>
+            </div>
+
+            <% if (!rates || !rates.length) { %>
+              <div class="price-rates-row" role="row">
+                <span role="cell">—</span>
+                <span role="cell">—</span>
+                <span role="cell">—</span>
+              </div>
+            <% } else { %>
+              <% rates.forEach((rate) => { %>
+                <div class="price-rates-row" role="row">
+                  <span role="cell">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      name="rates[<%= rate.id %>][price]"
+                      value="<%= Number(rate.price).toFixed(2) %>"
+                    />
+                  </span>
+                  <span role="cell">
+                    <input
+                      type="number"
+                      step="1"
+                      min="0"
+                      name="rates[<%= rate.id %>][days_to_change]"
+                      value="<%= Number(rate.id) === 1 ? 0 : Number(rate.days_to_change) || 0 %>"
+                      <%= Number(rate.id) === 1 ? 'readonly aria-label="Protected base price schedule"' : '' %>
+                    />
+                  </span>
+                  <span role="cell" class="price-rate-action-cell">
+                    <button
+                      type="button"
+                      class="save-button icon-button is-inactive"
+                      aria-label="Save price rate"
+                      title="Save"
+                      data-price-rate-id="<%= rate.id %>"
+                      disabled
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H5V5h10v4z" fill="currentColor"/>
+                      </svg>
+                    </button>
+                    <button
+                      type="submit"
+                      class="danger-button icon-button delete-button"
+                      aria-label="Delete price rate"
+                      title="Delete"
+                      formaction="/settings/prices/<%= rate.id %>/delete"
+                      formmethod="post"
+                      <%= Number(rate.id) === 1 ? 'disabled' : '' %>
+                    >
+                      <img src="/icons/trash-2.svg" alt="Delete" />
+                    </button>
+                  </span>
+                </div>
+              <% }); %>
+            <% } %>
+          </div>
+
+          <div class="price-rates-new-row">
+            <h3>Add new price rate</h3>
+            <div class="price-rates-new-grid">
+              <label>
+                <span>Price</span>
+                <input type="number" step="0.01" min="0" name="newPrice" value="" placeholder="" />
+              </label>
+              <label>
+                <span>Days to change</span>
+                <input type="number" step="1" min="0" name="newDaysToChange" value="" placeholder="" />
+              </label>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="primary-btn">Add Price</button>
+          </div>
+        </form>
+      </main>
+    </div>
+
+    <script>
+      document.querySelectorAll('.price-rates-row').forEach((row) => {
+        const inputs = row.querySelectorAll('input');
+        if (!inputs.length) return;
+
+        const saveButton = row.querySelector('.save-button');
+        if (!saveButton) return;
+
+        const initialValues = Array.from(inputs).map((input) => input.value);
+
+        const updateState = () => {
+          const hasChanges = Array.from(inputs).some((input, index) => input.value !== initialValues[index]);
+          saveButton.disabled = !hasChanges;
+          saveButton.classList.toggle('is-inactive', !hasChanges);
+        };
+
+        inputs.forEach((input) => {
+          input.addEventListener('input', updateState);
+          input.addEventListener('change', updateState);
+        });
+
+        saveButton.addEventListener('click', () => {
+          const rowId = saveButton.dataset.priceRateId;
+          const rowInputs = row.querySelectorAll('input');
+          const priceInput = rowInputs[0];
+          const daysInput = rowInputs[1];
+          if (!rowId || !priceInput || !daysInput) return;
+
+          const form = document.createElement('form');
+          form.method = 'POST';
+          form.action = `/settings/prices/${rowId}/save`;
+
+          const priceField = document.createElement('input');
+          priceField.type = 'hidden';
+          priceField.name = 'price';
+          priceField.value = priceInput.value;
+
+          const daysField = document.createElement('input');
+          daysField.type = 'hidden';
+          daysField.name = 'days_to_change';
+          daysField.value = daysInput.value;
+
+          form.appendChild(priceField);
+          form.appendChild(daysField);
+          document.body.appendChild(form);
+          form.submit();
+        });
+
+        updateState();
+      });
+    </script>
+  </body>
+</html>

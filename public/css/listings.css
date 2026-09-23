@@ -1102,6 +1102,242 @@ h1 {
   color: var(--text-main);
 }
 
+.price-rates-form {
+  display: grid;
+  gap: 18px;
+}
+
+.price-rates-table {
+  display: grid;
+  gap: 0;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.price-rates-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.9fr) minmax(72px, 96px);
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(233, 217, 245, 0.75);
+  font-size: 0.76rem;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.price-rates-row:last-child {
+  border-bottom: none;
+}
+
+.price-rates-row > span,
+.price-rates-row > span[role="cell"] {
+  min-width: 0;
+}
+
+.price-rate-action-cell {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: visible;
+}
+
+.price-rate-header-action {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  text-transform: none;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.price-rate-header-action img,
+.icon-button img,
+.save-button svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 10px;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.save-button {
+  background: var(--sage-mint);
+  border: 1px solid rgba(127, 168, 143, 0.6);
+  color: var(--deep-plum);
+}
+
+.save-button:not(:disabled):hover {
+  filter: brightness(0.98);
+}
+
+.save-button.is-inactive {
+  background: rgba(185, 220, 203, 0.5);
+  border-color: rgba(155, 182, 168, 0.55);
+  color: rgba(49, 53, 58, 0.7);
+  cursor: not-allowed;
+}
+
+.danger-button {
+  background: rgba(201, 85, 85, 0.12);
+  border: 1px solid rgba(201, 85, 85, 0.35);
+  color: #8f2f2f;
+}
+
+.danger-button:disabled {
+  background: rgba(145, 145, 145, 0.12);
+  border-color: rgba(145, 145, 145, 0.2);
+  color: rgba(93, 93, 93, 0.7);
+  cursor: not-allowed;
+  opacity: 0.85;
+}
+
+.locked-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 52px;
+}
+
+@media (max-width: 560px) {
+  .price-rates-row {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr) minmax(62px, 72px);
+    gap: 8px;
+    padding: 8px 10px;
+  }
+
+  .price-rates-row input {
+    min-width: 0;
+    padding: 8px 9px;
+  }
+
+  .price-rates-new-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.price-rates-row.header {
+  background: rgba(255, 255, 255, 0.75);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 800;
+  color: var(--text-secondary);
+}
+
+.price-rates-row input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 8px 10px;
+  font: inherit;
+  color: var(--text-main);
+}
+
+.price-rates-row input[readonly] {
+  background: rgba(237, 232, 245, 0.8);
+  color: var(--text-secondary);
+}
+
+.price-rates-new-row {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.price-rates-new-row h3 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.price-rates-new-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: end;
+  padding: 4px 0 0;
+}
+
+.price-rates-new-grid label {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 0 4px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.price-rates-new-grid input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.primary-btn {
+  appearance: none;
+  border: none;
+  background: var(--primary-lavender);
+  color: var(--deep-plum);
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.danger-button {
+  appearance: none;
+  border: 1px solid rgba(201, 85, 85, 0.25);
+  background: rgba(201, 85, 85, 0.08);
+  color: #8f2f2f;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.muted-inline {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.status-banner.success {
+  border-color: rgba(91, 170, 126, 0.35);
+  background: rgba(91, 170, 126, 0.1);
+  color: #285d3b;
+}
+
 .search-form {
   margin-bottom: 18px;
   display: grid;

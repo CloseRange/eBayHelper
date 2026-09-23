@@ -522,6 +522,14 @@
         sessionStorage.setItem('listing-draft', JSON.stringify(draft));
       };
 
+      const resetFreshListingDraft = () => {
+        const url = new URL(window.location.href);
+        const category = url.searchParams.get('category');
+        if (!category) {
+          sessionStorage.removeItem('listing-draft');
+        }
+      };
+
       const normalizePriceInput = (value) => {
         const parsed = Number(String(value).trim());
         if (!Number.isFinite(parsed) || parsed <= 0) {
@@ -530,10 +538,17 @@
         return Number(parsed.toFixed(2));
       };
 
+      const defaultListingPrice = Number(<%= Number(defaultListingPrice || 10).toFixed(2) %>);
+
       const getSavedPrice = () => {
         const draft = getListingDraft();
-        const saved = normalizePriceInput(draft.price ?? 9.99);
-        return saved ?? 9.99;
+        const saved = normalizePriceInput(draft.price);
+        if (saved === null) {
+          draft.price = defaultListingPrice;
+          setListingDraft(draft);
+          return defaultListingPrice;
+        }
+        return saved;
       };
 
       const persistPriceDraft = (nextValue) => {
@@ -656,7 +671,7 @@
           const tagImage64 = sessionStorage.getItem('listing-photo-tag') || undefined;
           const draft = JSON.parse(sessionStorage.getItem('listing-draft') || '{}');
           const category = new URLSearchParams(window.location.search).get('category');
-          const parsedPrice = normalizePriceInput(document.getElementById('listing-price')?.value ?? draft.price ?? 9.99);
+          const parsedPrice = normalizePriceInput(document.getElementById('listing-price')?.value ?? draft.price ?? defaultListingPrice);
           const priceValue = parsedPrice ?? getSavedPrice();
 
           if (!frontImage64 || !backImage64) {
@@ -700,6 +715,8 @@
       if (document.getElementById('summary-required-list')) {
         buildSummaryReview();
       }
+
+      resetFreshListingDraft();
 
       const priceInput = document.getElementById('listing-price');
       const priceSaveButton = document.getElementById('listing-price-save');

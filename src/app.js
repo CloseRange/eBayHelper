@@ -2,9 +2,9 @@ const express = require('express');
 const path = require('path');
 const session = require('express-session');
 const EbayAuthToken = require('ebay-oauth-nodejs-client');
-const { getSupabase, isSupabaseConfigured, getDashboardListings, getPendingListings, getLogs, getListingDetailsBySku } = require('./supabase/client');
+const { getSupabase, isSupabaseConfigured, getDashboardListings, getPendingListings, getLogs, getPriceRates, getListingsForPriceRateCheck, savePriceRate, deletePriceRate, getListingDetailsBySku } = require('./supabase/client');
 const { getEbayAccessToken, getEbaySignInUrl, exchangeAuthCodeForTokens, getRequestedScopes } = require('./ebay');
-const { ebaySetup, getEbayPostingStatusForSku, getActiveListings } = require('./ebay/ebay');
+const { ebaySetup, getEbayPostingStatusForSku, getActiveListings, updateListingPrice } = require('./ebay/ebay');
 const { types, getAspects } = require('./ebay/ebay_categories');
 const { generateImageModel1 } = require('./ebay/openai_image');
 const { generateSKU, generateListing } = require('./util/post_new_item');
@@ -120,6 +120,134 @@ app.get('/settings/logs', requireAuth, async (req, res) => {
 	});
 });
 
+app.get('/settings/prices', requireAuth, async (req, res) => {
+	let rates = [];
+	let error = null;
+	let success = null;
+
+	if (req.query.error) {
+		error = decodeURIComponent(String(req.query.error));
+	}
+	if (req.query.success) {
+		success = decodeURIComponent(String(req.query.success));
+	}
+
+	try {
+		rates = await getPriceRates();
+		rates = rates.map((rate) => ({
+			...rate,
+			days_to_change: Number(rate.id) === 1 ? 0 : Number(rate.days_to_change) || 0,
+		}));
+	} catch (err) {
+		error = error || (err && err.message) || 'Unable to load price rate settings.';
+		rates = [];
+	}
+
+	return res.render('price-rates', {
+		currentUser: req.session.user,
+		rates,
+		error,
+		success,
+	});
+});
+
+function parsePostedPriceRows(req) {
+	const result = {};
+	const entries = Object.entries(req.body || {});
+
+	for (const [key, value] of entries) {
+		const match = /^rates\[(\d+)\]\[(price|days_to_change)\]$/.exec(key);
+		if (!match) continue;
+
+		const id = Number(match[1]);
+		const field = match[2];
+		if (!result[id]) {
+			result[id] = {};
+		}
+		result[id][field] = value;
+	}
+
+	return result;
+}
+
+app.post('/settings/prices', requireAuth, async (req, res) => {
+	const postedRateRows = parsePostedPriceRows(req);
+	const entries = Object.entries(postedRateRows).map(([idKey, values]) => ({
+		id: Number(idKey),
+		price: values && typeof values === 'object' ? values.price : undefined,
+		days_to_change: values && typeof values === 'object' ? values.days_to_change : undefined,
+	}));
+
+	try {
+		for (const entry of entries) {
+			if (!Number.isFinite(entry.id) || entry.id < 1) {
+				continue;
+			}
+			await savePriceRate({
+				id: entry.id,
+				price: entry.price,
+				days_to_change: entry.days_to_change,
+			});
+		}
+
+		const newPrice = req.body && req.body.newPrice !== undefined ? req.body.newPrice : '';
+		const newDays = req.body && req.body.newDaysToChange !== undefined ? req.body.newDaysToChange : '';
+		if (String(newPrice).trim() !== '' || String(newDays).trim() !== '') {
+			if (String(newPrice).trim() === '' || String(newDays).trim() === '') {
+				throw new Error('Both a price and days to change are required for a new row.');
+			}
+			await savePriceRate({
+				price: newPrice,
+				days_to_change: newDays,
+			});
+		}
+
+		return res.redirect('/settings/prices?success=' + encodeURIComponent('Price rates saved.'));
+	} catch (err) {
+		console.error('[POST /settings/prices] Failed:', err.message || err);
+		return res.redirect('/settings/prices?error=' + encodeURIComponent(err.message || 'Unable to save price rates.'));
+	}
+});
+
+app.post('/settings/prices/:id/save', requireAuth, async (req, res) => {
+	try {
+		const id = Number(req.params.id);
+		if (!Number.isInteger(id) || id <= 0) {
+			throw new Error('Invalid price rate id.');
+		}
+
+		const postedRateRows = parsePostedPriceRows(req);
+		const rowData = postedRateRows[id] || {};
+		const priceValue = rowData.price !== undefined ? rowData.price : req.body?.price;
+		const daysValue = rowData.days_to_change !== undefined ? rowData.days_to_change : req.body?.days_to_change;
+
+		await savePriceRate({
+			id,
+			price: priceValue,
+			days_to_change: id === 1 ? 0 : daysValue,
+		});
+
+		return res.redirect('/settings/prices?success=' + encodeURIComponent('Price rate saved.'));
+	} catch (err) {
+		console.error('[POST /settings/prices/:id/save] Failed:', err.message || err);
+		return res.redirect('/settings/prices?error=' + encodeURIComponent(err.message || 'Unable to save price rate.'));
+	}
+});
+
+app.post('/settings/prices/:id/delete', requireAuth, async (req, res) => {
+	try {
+		const id = Number(req.params.id);
+		if (!Number.isInteger(id) || id <= 0) {
+			throw new Error('Invalid price rate id.');
+		}
+		await deletePriceRate(id);
+		return res.redirect('/settings/prices?success=' + encodeURIComponent('Price rate deleted.'));
+	} catch (err) {
+		console.error('[POST /settings/prices/:id/delete] Failed:', err.message || err);
+		return res.redirect('/settings/prices?error=' + encodeURIComponent(err.message || 'Unable to delete price rate.'));
+	}
+});
+
 app.get('/dashboard', requireAuth, async (req, res) => {
 	let listings = [];
 	let pendingListings = [];
@@ -187,6 +315,12 @@ app.get('/setupEbay', requireAuth, async (req, res) => {
 
 app.get('/create-listing', requireAuth, async (req, res) => {
 	hydrateEbaySessionToken(req);
+	const priceRates = await getPriceRates();
+	const basePriceRate = (priceRates || []).find((rate) => Number(rate.id) === 1);
+	const defaultListingPrice = Number(basePriceRate?.price);
+	const safeDefaultListingPrice = Number.isFinite(defaultListingPrice) && defaultListingPrice > 0
+		? defaultListingPrice
+		: 10;
 	const categoryOptions = Object.values(types).map((type) => ({
 		value: type.name,
 		label: type.name,
@@ -220,6 +354,7 @@ app.get('/create-listing', requireAuth, async (req, res) => {
 		aspects,
 		aspectError,
 		currentStep,
+		defaultListingPrice: safeDefaultListingPrice,
 	});
 });
 
@@ -235,6 +370,11 @@ app.post('/api/listing/generate', requireAuth, async (req, res) => {
 			...rawInfo,
 			features: rawInfo.features ?? rawInfo.aspects ?? {},
 		};
+
+		const basePriceRates = await getPriceRates();
+		const basePriceRate = (basePriceRates || []).find((rate) => Number(rate.id) === 1);
+		const configuredBasePrice = Number(basePriceRate?.price);
+		const defaultBasePrice = Number.isFinite(configuredBasePrice) && configuredBasePrice > 0 ? configuredBasePrice : 10;
 
 		if (typeof info.category === 'string' && info.category.trim() && !info.categoryId) {
 			const selectedType = Object.values(types).find((type) => type.name === info.category) || null;
@@ -260,6 +400,10 @@ app.post('/api/listing/generate', requireAuth, async (req, res) => {
 			return res.status(400).json({
 				error: 'Front and back photos are required before generating a listing.',
 			});
+		}
+
+		if (!Number.isFinite(Number(info.price)) || Number(info.price) <= 0) {
+			info.price = defaultBasePrice;
 		}
 
 		const sku = await generateSKU();
@@ -385,6 +529,56 @@ app.post('/api/generate-listing-images', requireAuth, async (req, res) => {
 		});
 	}
 });
+
+async function applyPriceRateLadder() {
+	try {
+		const rates = (await getPriceRates())
+			.filter((rate) => Number.isFinite(Number(rate.days_to_change)) && Number(rate.days_to_change) >= 0)
+			.sort((a, b) => Number(a.days_to_change) - Number(b.days_to_change));
+
+		if (!rates.length) {
+			return;
+		}
+
+		const listings = await getListingsForPriceRateCheck();
+		const now = Date.now();
+		const client = getSupabase();
+
+		for (const listing of listings) {
+			const sku = typeof listing?.sku === 'string' ? listing.sku.trim() : '';
+			const price = Number(listing?.price);
+			const createdAt = listing?.created_at ? Date.parse(listing.created_at) : NaN;
+
+			if (!sku || !Number.isFinite(price) || !Number.isFinite(createdAt)) {
+				continue;
+			}
+
+			const ageDays = Math.max(0, Math.floor((now - createdAt) / (1000 * 60 * 60 * 24)));
+			const applicableRate = [...rates]
+				.filter((rate) => Number(rate.days_to_change) <= ageDays)
+				.sort((a, b) => Number(b.days_to_change) - Number(a.days_to_change))[0];
+
+			if (!applicableRate) {
+				continue;
+			}
+
+			const targetPrice = Number(applicableRate.price);
+			if (!Number.isFinite(targetPrice) || targetPrice < 0) {
+				continue;
+			}
+
+			if (price > targetPrice) {
+				console.log(`[price-ladder] Lowering ${sku} from $${price} to $${targetPrice} at ${ageDays} days.`);
+				await updateListingPrice(sku, targetPrice);
+				await client.from('listing').update({ price: targetPrice }).eq('sku', sku);
+			}
+		}
+	} catch (err) {
+		console.error('[applyPriceRateLadder] Failed:', err.message || err);
+	}
+}
+
+app.applyPriceRateLadder = applyPriceRateLadder;
 
 app.post('/logout', (req, res) => {
 	req.session.destroy(() => {
