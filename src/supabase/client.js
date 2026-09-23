@@ -175,6 +175,35 @@ async function getPendingListings() {
   });
 }
 
+async function getLogs({ limit = 200 } = {}) {
+  const client = getSupabase();
+  const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(500, Number(limit))) : 200;
+
+  const tablesToTry = ['logs', 'log'];
+
+  for (const tableName of tablesToTry) {
+    const { data, error } = await client
+      .from(tableName)
+      .select('created_at, caller, message, color, type')
+      .order('created_at', { ascending: false })
+      .limit(safeLimit);
+
+    if (!error) {
+      return Array.isArray(data) ? data : [];
+    }
+
+    const message = typeof error.message === 'string' ? error.message.toLowerCase() : '';
+    if (message.includes('does not exist') || (message.includes('relation') && message.includes('not found'))) {
+      continue;
+    }
+
+    console.error('[getLogs] Supabase error:', error);
+    return [];
+  }
+
+  return [];
+}
+
 async function getListingDetailsBySku(sku) {
   const client = getSupabase();
   const normalizedSku = typeof sku === 'string' ? sku.trim() : '';
@@ -398,6 +427,42 @@ async function deleteListingState(sku) {
 
   return data;
 }
+async function addLog(caller, message, type, color) {
+  const client = getSupabase();
+
+  if (!caller || !message || !type) {
+    return null;
+  }
+
+  const tablesToTry = ['logs', 'log'];
+
+  for (const tableName of tablesToTry) {
+    const { data, error } = await client
+      .from(tableName)
+      .insert({
+        caller,
+        message,
+        type,
+        color
+      })
+      .select()
+      .single();
+
+    if (!error) {
+      return data;
+    }
+
+    const errorMessage = typeof error.message === 'string' ? error.message.toLowerCase() : '';
+    if (errorMessage.includes('does not exist') || (errorMessage.includes('relation') && errorMessage.includes('not found'))) {
+      continue;
+    }
+
+    console.error('[addLog] Supabase error:', error);
+    return null;
+  }
+
+  return null;
+}
 
 module.exports = {
   getSupabase,
@@ -405,10 +470,12 @@ module.exports = {
   getAllListingSkus,
   getDashboardListings,
   getPendingListings,
+  getLogs,
   getListingDetailsBySku,
   uploadBase64ImageToBucket,
   createListing,
   addListingImages,
   updateListingState,
-  deleteListingState
+  deleteListingState,
+  addLog,
 };

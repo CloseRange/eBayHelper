@@ -13,6 +13,15 @@
           <p class="eyebrow">miyo threads</p>
           <h1>Inventory</h1>
         </div>
+
+        <div class="header-actions" aria-label="Dashboard actions">
+          <a class="header-action <%= ebayConnectionError ? 'header-action-warning' : '' %>" href="/setupEbay" aria-label="Mint new eBay access token">
+            <img src="/icons/brain.svg" alt="Mint access token" />
+          </a>
+          <a class="header-action" href="/settings" aria-label="Open settings">
+            <img src="/icons/settings.svg" alt="Settings" />
+          </a>
+        </div>
       </header>
 
       <form method="get" action="/dashboard" class="search-form" aria-label="Search listings by SKU" id="sku-search-form">
@@ -34,23 +43,24 @@
         <div class="status-banner error"><%= error %></div>
       <% } %>
 
+      <% if (ebayConnectionError) { %>
+        <div class="status-banner warning"><%= ebayConnectionError %></div>
+      <% } %>
+
       <% if (pendingListings && pendingListings.length) { %>
         <section class="pending-section" aria-label="Pending listings">
-          <h2>Pending Listings</h2>
           <div class="listing-list pending-list" role="table" aria-label="Pending listings table">
             <div class="list-row list-row-header pending-row-header" role="row">
+              <span role="columnheader">State</span>
               <span role="columnheader">SKU</span>
-              <span role="columnheader">Title</span>
-              <span role="columnheader">Actual state</span>
             </div>
             <% pendingListings.forEach((listing) => { %>
               <div class="list-row pending-row" role="row">
-                <span class="sku-cell" role="cell"><%= listing.sku || '—' %></span>
-                <span class="col-title" role="cell"><%= listing.title || 'Untitled listing' %></span>
                 <span class="state-cell" role="cell">
-                  <span class="state-dot" style="background: <%= listing.stateColor || '#B8A4E3' %>;"></span>
+                  <span class="state-dot" data-state-color="<%= listing.stateColor || '#B8A4E3' %>"></span>
                   <%= listing.stateName || 'Unknown' %>
                 </span>
+                <span class="sku-cell" role="cell"><%= listing.sku || '—' %></span>
               </div>
             <% }); %>
           </div>
@@ -115,7 +125,6 @@
             <div><dt>SKU</dt><dd id="detail-sku">-</dd></div>
             <div><dt>Price</dt><dd id="detail-price">-</dd></div>
             <div><dt>Age</dt><dd id="detail-age">-</dd></div>
-            <div><dt>State</dt><dd id="detail-state">-</dd></div>
             <div><dt>BIN</dt><dd id="detail-bin">-</dd></div>
             <div><dt>SN</dt><dd id="detail-sn">-</dd></div>
             <div><dt>Category</dt><dd id="detail-category">-</dd></div>
@@ -141,7 +150,6 @@
           const detailSku = document.getElementById('detail-sku');
           const detailPrice = document.getElementById('detail-price');
           const detailAge = document.getElementById('detail-age');
-          const detailState = document.getElementById('detail-state');
           const detailBin = document.getElementById('detail-bin');
           const detailSn = document.getElementById('detail-sn');
           const detailCategory = document.getElementById('detail-category');
@@ -154,6 +162,11 @@
           const imagePrev = document.getElementById('image-prev');
           const imageNext = document.getElementById('image-next');
           const imageCounter = document.getElementById('image-counter');
+
+          document.querySelectorAll('.state-dot[data-state-color]').forEach((dot) => {
+            const color = dot.getAttribute('data-state-color') || '#B8A4E3';
+            dot.style.background = color;
+          });
 
           let activeImages = [];
           let activeImageIndex = 0;
@@ -229,7 +242,6 @@
             if (detailSku) detailSku.textContent = sku || '-';
             if (detailPrice) detailPrice.textContent = '-';
             if (detailAge) detailAge.textContent = '-';
-            if (detailState) detailState.textContent = '-';
             if (detailBin) detailBin.textContent = '-';
             if (detailSn) detailSn.textContent = '-';
             if (detailCategory) detailCategory.textContent = '-';
@@ -257,7 +269,6 @@
             if (detailSku) detailSku.textContent = listing.sku || '-';
             if (detailPrice) detailPrice.textContent = priceValue;
             if (detailAge) detailAge.textContent = ageValue;
-            if (detailState) detailState.textContent = listing.state || '-';
             if (detailBin) detailBin.textContent = listing.bin === null || listing.bin === undefined ? '-' : String(listing.bin);
             if (detailSn) detailSn.textContent = listing.sn === null || listing.sn === undefined ? '-' : String(listing.sn);
             if (detailCategory) detailCategory.textContent = listing.categoryId || '-';

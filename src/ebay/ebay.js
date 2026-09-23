@@ -532,5 +532,149 @@ async function getEbayPostingStatusForSku(sku) {
         message: 'sku not found in ebay inventory'
     };
 }
+async function updateListingPrice(sku, newPrice) {
+    // --------------------------------------------------------
+    // VALIDATE INPUT
+    // --------------------------------------------------------
 
-module.exports = { getAllInventoryItems, postListing, createLocation, ebaySetup, getActiveListings, getEbayPostingStatusForSku };
+    const normalizedSku = String(sku || "").trim();
+    const price = Number(newPrice);
+
+    if (!normalizedSku) {
+        throw new Error("SKU is required.");
+    }
+
+    if (
+        !Number.isFinite(price) ||
+        price <= 0 ||
+        !Number.isInteger(Math.round(price * 100) * 100 / 100)
+    ) {
+        // The integer check is not needed for ordinary prices;
+        // validation below enforces a maximum of two decimal places.
+        if (!Number.isFinite(price) || price <= 0) {
+            throw new Error("Price must be greater than zero.");
+        }
+    }
+
+    const formattedPrice = price.toFixed(2);
+
+    // --------------------------------------------------------
+    // FIND EXISTING OFFER
+    // --------------------------------------------------------
+
+    const offers = await getOffersForSku(normalizedSku);
+
+    const offer = offers.find(
+        (item) =>
+            item.status === "PUBLISHED" &&
+            item.marketplaceId === "EBAY_US"
+    );
+
+    if (!offer) {
+        throw new Error(
+            `No published eBay offer found for SKU ${normalizedSku}.`
+        );
+    }
+
+    if (!offer.offerId) {
+        throw new Error(
+            `Published offer for SKU ${normalizedSku} has no offerId.`
+        );
+    }
+
+    // --------------------------------------------------------
+    // UPDATE PRICE
+    // --------------------------------------------------------
+
+    const body = {
+        requests: [
+            {
+                sku: normalizedSku,
+
+                offers: [
+                    {
+                        offerId: offer.offerId,
+
+                        price: {
+                            currency: "USD",
+                            value: formattedPrice
+                        }
+                    }
+                ]
+            }
+        ]
+    };
+
+    const response = await fetch(
+        `${getEbayApiBase()}/sell/inventory/v1/bulk_update_price_quantity`,
+        {
+            method: "POST",
+
+            headers: {
+                ...getEbayJsonHeaders(),
+                "Content-Type": "application/json"
+            },
+
+            body: JSON.stringify(body)
+        }
+    );
+
+    const data = await response.json();
+
+    // --------------------------------------------------------
+    // CHECK HTTP RESPONSE
+    // --------------------------------------------------------
+
+    if (!response.ok) {
+        throw new Error(
+            `eBay price update failed (${response.status}): ` +
+            JSON.stringify(data)
+        );
+    }
+
+    // --------------------------------------------------------
+    // CHECK INDIVIDUAL ITEM / OFFER RESPONSE
+    // --------------------------------------------------------
+
+    const itemResult = data.responses?.[0];
+
+    if (!itemResult) {
+        throw new Error(
+            `eBay did not return a price update result: ` +
+            JSON.stringify(data)
+        );
+    }
+
+    const offerResult = itemResult.offers?.find(
+        (item) => item.offerId === offer.offerId
+    );
+
+    const itemFailed =
+        itemResult.statusCode >= 400 ||
+        (itemResult.errors?.length ?? 0) > 0;
+
+    const offerFailed =
+        offerResult?.statusCode >= 400 ||
+        (offerResult?.errors?.length ?? 0) > 0;
+
+    if (itemFailed || offerFailed) {
+        throw new Error(
+            `eBay rejected the price update: ` +
+            JSON.stringify(data)
+        );
+    }
+
+    console.log(
+        `[eBay] Updated ${normalizedSku} to $${formattedPrice}`
+    );
+
+    return {
+        sku: normalizedSku,
+        offerId: offer.offerId,
+        price: Number(formattedPrice),
+        currency: "USD",
+        success: true
+    };
+}
+
+module.exports = { getAllInventoryItems, postListing, createLocation, ebaySetup, getActiveListings, getEbayPostingStatusForSku, updateListingPrice };

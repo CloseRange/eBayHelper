@@ -2,18 +2,18 @@ const express = require('express');
 const path = require('path');
 const session = require('express-session');
 const EbayAuthToken = require('ebay-oauth-nodejs-client');
-const { getSupabase, isSupabaseConfigured, getDashboardListings, getPendingListings, getListingDetailsBySku } = require('./supabase/client');
+const { getSupabase, isSupabaseConfigured, getDashboardListings, getPendingListings, getLogs, getListingDetailsBySku } = require('./supabase/client');
 const { getEbayAccessToken, getEbaySignInUrl, exchangeAuthCodeForTokens, getRequestedScopes } = require('./ebay');
-const { ebaySetup, getEbayPostingStatusForSku } = require('./ebay/ebay');
+const { ebaySetup, getEbayPostingStatusForSku, getActiveListings } = require('./ebay/ebay');
 const { types, getAspects } = require('./ebay/ebay_categories');
 const { generateImageModel1 } = require('./ebay/openai_image');
 const { generateSKU, generateListing } = require('./util/post_new_item');
 const { beginMint, endMint, getAccessToken } = require('./ebay/minting');
-
+const debug = require('./debug/debug');
 
 const DEFAULT_LOGIN_EMAIL = 'michael.m.hulbert@gmail.com';
 const DEFAULT_LOGIN_PASSCODE = process.env.LOGIN_PASSCODE || 'passcode';
-
+	
 // Minimal Express app — stripped of routes and middleware.
 const app = express();
 
@@ -98,10 +98,22 @@ app.get('/', (req, res) => {
 	return res.redirect('/dashboard');
 });
 
+app.get('/settings', requireAuth, async (req, res) => {
+	const shouldViewLogs = String(req.query.view || '').toLowerCase() === 'logs';
+	const logs = shouldViewLogs ? await getLogs() : [];
+
+	return res.render('settings', {
+		currentUser: req.session.user,
+		logs,
+		showLogs: shouldViewLogs,
+	});
+});
+
 app.get('/dashboard', requireAuth, async (req, res) => {
 	let listings = [];
 	let pendingListings = [];
 	let error = null;
+	let ebayConnectionError = null;
 
 	try {
 		if (!isSupabaseConfigured()) {
@@ -136,11 +148,19 @@ app.get('/dashboard', requireAuth, async (req, res) => {
 		error = err.message || 'Unable to load listing table rows.';
 	}
 
+	try {
+		await getActiveListings();
+	} catch (err) {
+		ebayConnectionError = 'Not connected to eBay API';
+		console.warn('[GET /dashboard] eBay API connection check failed:', err.message || err);
+	}
+
 	return res.render('dashboard', {
 		listings,
 		pendingListings,
 		skuQuery: '',
 		error,
+		ebayConnectionError,
 		currentUser: req.session.user,
 	});
 });

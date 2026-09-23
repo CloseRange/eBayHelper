@@ -208,11 +208,11 @@ async function generateListing(frontImage64, backImage64, tagImage64, sku, info)
             backPublicUrl,
             tagPublicUrl,
         };
-        await db.deleteListingState(sku);
     } catch (err) {
         console.error('Error generating listing:', err);
         throw err;
     }
+    await db.deleteListingState(sku);
 }
 
 
