@@ -1,7 +1,7 @@
 require("dotenv").config();
 
 const sharp = require("sharp");
-
+const db = require("./../supabase/client");
 
 // ============================================================
 // CONFIG
