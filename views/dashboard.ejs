@@ -3,25 +3,58 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Listings | eBay Helper</title>
+    <title>Miyo Threads | Inventory</title>
     <link rel="stylesheet" href="/css/listings.css" />
   </head>
   <body>
     <div class="page-shell">
       <header class="topbar">
-        <div>
-          <p class="eyebrow">Active listings</p>
+        <div class="brand-lockup">
+          <p class="eyebrow">miyo threads</p>
           <h1>Inventory</h1>
         </div>
-        <form method="post" action="/auth/ebay/login" class="mint-form">
-          <button type="submit" class="mint-button" aria-label="Mint eBay token">
-            <img src="/icons/zap.svg" alt="Mint eBay token" />
-          </button>
-        </form>
       </header>
+
+      <form method="get" action="/dashboard" class="search-form" aria-label="Search listings by SKU" id="sku-search-form">
+        <label for="sku-search" class="search-label">Search by SKU</label>
+        <div class="search-controls">
+          <input
+            id="sku-search"
+            name="sku"
+            type="search"
+            value="<%= skuQuery || '' %>"
+            placeholder="Enter SKU"
+            autocomplete="off"
+          />
+          <button type="button" class="clear-search" id="clear-sku-search">Clear</button>
+        </div>
+      </form>
 
       <% if (error) { %>
         <div class="status-banner error"><%= error %></div>
+      <% } %>
+
+      <% if (pendingListings && pendingListings.length) { %>
+        <section class="pending-section" aria-label="Pending listings">
+          <h2>Pending Listings</h2>
+          <div class="listing-list pending-list" role="table" aria-label="Pending listings table">
+            <div class="list-row list-row-header pending-row-header" role="row">
+              <span role="columnheader">SKU</span>
+              <span role="columnheader">Title</span>
+              <span role="columnheader">Actual state</span>
+            </div>
+            <% pendingListings.forEach((listing) => { %>
+              <div class="list-row pending-row" role="row">
+                <span class="sku-cell" role="cell"><%= listing.sku || '—' %></span>
+                <span class="col-title" role="cell"><%= listing.title || 'Untitled listing' %></span>
+                <span class="state-cell" role="cell">
+                  <span class="state-dot" style="background: <%= listing.stateColor || '#B8A4E3' %>;"></span>
+                  <%= listing.stateName || 'Unknown' %>
+                </span>
+              </div>
+            <% }); %>
+          </div>
+        </section>
       <% } %>
 
       <% if (!listings || listings.length === 0) { %>
@@ -29,54 +62,334 @@
           <div class="empty-icon-wrap">
             <img src="/icons/heart-plus.svg" alt="Package icon" />
           </div>
-          <h2>No active listings</h2>
-          <p>You do not have any published eBay listings right now.</p>
+          <h2>No listings found</h2>
+          <p>No rows matched your SKU search in the listing table.</p>
         </section>
       <% } else { %>
-        <main class="listings-grid">
+        <main class="listing-list" aria-label="Listing rows">
+          <div class="list-row list-row-header" role="row">
+            <span role="columnheader">Title</span>
+            <span role="columnheader">Price</span>
+            <span role="columnheader">Age</span>
+            <span role="columnheader">SKU</span>
+          </div>
           <% listings.forEach((listing) => { %>
-            <article class="listing-card" aria-label="<%= listing.title || 'eBay listing' %>">
-              <div class="image-strip">
-                <% if (listing.images && listing.images.length) { %>
-                  <% listing.images.forEach((imageUrl) => { %>
-                    <img src="<%= imageUrl %>" alt="<%= listing.title || 'Listing image' %>" />
-                  <% }); %>
-                <% } else { %>
-                  <div class="image-placeholder">
-                    <img src="/icons/heart-plus.svg" alt="No image" />
-                  </div>
-                <% } %>
-              </div>
-
-              <div class="listing-body">
-                <div class="listing-header">
-                  <h3><%= listing.title || 'Untitled listing' %></h3>
-                  <span class="status-pill"><%= listing.listingStatus || 'ACTIVE' %></span>
-                </div>
-
-                <div class="meta-row">
-                  <span>SKU: <strong><%= listing.sku || '—' %></strong></span>
-                  <span>Qty: <strong><%= listing.quantity ?? 0 %></strong></span>
-                </div>
-
-                <% if (listing.price && listing.price.value) { %>
-                  <div class="price-row">
-                    <span class="price"><%= listing.price.currency || 'USD' %> <%= Number(listing.price.value).toFixed(2) %></span>
-                  </div>
-                <% } %>
-
-                <% if (listing.description) { %>
-                  <p class="description"><%= listing.description %></p>
-                <% } %>
-              </div>
+            <article
+              class="list-row data-row"
+              role="button"
+              tabindex="0"
+              aria-label="Open details for <%= listing.title || 'listing' %>"
+              data-sku="<%= listing.sku || '' %>"
+            >
+              <span class="col-title" role="cell"><%= listing.title %></span>
+              <span role="cell"><%= listing.priceDisplay %></span>
+              <span role="cell"><%= listing.ageDisplay %></span>
+              <span class="sku-cell" role="cell"><%= listing.sku %></span>
             </article>
           <% }); %>
+          <div class="list-row list-row-empty" id="search-empty-row" role="status" aria-live="polite" hidden>
+            <span class="empty-row-text">No matching SKU rows.</span>
+          </div>
         </main>
       <% } %>
 
       <a class="fab" href="/create-listing" aria-label="Add new listing">
         <span>+</span>
       </a>
+
+      <section class="listing-modal" id="listing-modal" hidden>
+        <div class="listing-modal-backdrop" id="listing-modal-backdrop"></div>
+        <article class="listing-modal-panel" role="dialog" aria-modal="true" aria-labelledby="listing-modal-title">
+          <button type="button" class="modal-close" id="listing-modal-close" aria-label="Close details">x</button>
+          <h2 id="listing-modal-title">Listing details</h2>
+
+          <div class="modal-image-wrap" id="modal-image-wrap">
+            <button type="button" class="image-nav prev" id="image-prev" aria-label="Previous image">&#8249;</button>
+            <img id="modal-image" alt="Listing image" />
+            <div class="image-empty" id="image-empty" hidden>No images for this listing.</div>
+            <button type="button" class="image-nav next" id="image-next" aria-label="Next image">&#8250;</button>
+            <div class="image-counter" id="image-counter"></div>
+          </div>
+
+          <dl class="details-grid" id="modal-details-grid">
+            <div><dt>SKU</dt><dd id="detail-sku">-</dd></div>
+            <div><dt>Price</dt><dd id="detail-price">-</dd></div>
+            <div><dt>Age</dt><dd id="detail-age">-</dd></div>
+            <div><dt>State</dt><dd id="detail-state">-</dd></div>
+            <div><dt>BIN</dt><dd id="detail-bin">-</dd></div>
+            <div><dt>SN</dt><dd id="detail-sn">-</dd></div>
+            <div><dt>Category</dt><dd id="detail-category">-</dd></div>
+            <div><dt>Condition</dt><dd id="detail-condition">-</dd></div>
+            <div class="full-row"><dt>eBay Status</dt><dd id="detail-ebay-status">unknown</dd></div>
+            <div class="full-row"><dt>Description</dt><dd id="detail-description">-</dd></div>
+            <div class="full-row"><dt>Aspects</dt><dd id="detail-aspects">-</dd></div>
+          </dl>
+        </article>
+      </section>
+
+      <script>
+        (function () {
+          const form = document.getElementById('sku-search-form');
+          const searchInput = document.getElementById('sku-search');
+          const clearButton = document.getElementById('clear-sku-search');
+          const rows = Array.from(document.querySelectorAll('.data-row'));
+          const emptyRow = document.getElementById('search-empty-row');
+          const modal = document.getElementById('listing-modal');
+          const modalBackdrop = document.getElementById('listing-modal-backdrop');
+          const closeModalButton = document.getElementById('listing-modal-close');
+          const modalTitle = document.getElementById('listing-modal-title');
+          const detailSku = document.getElementById('detail-sku');
+          const detailPrice = document.getElementById('detail-price');
+          const detailAge = document.getElementById('detail-age');
+          const detailState = document.getElementById('detail-state');
+          const detailBin = document.getElementById('detail-bin');
+          const detailSn = document.getElementById('detail-sn');
+          const detailCategory = document.getElementById('detail-category');
+          const detailCondition = document.getElementById('detail-condition');
+          const detailEbayStatus = document.getElementById('detail-ebay-status');
+          const detailDescription = document.getElementById('detail-description');
+          const detailAspects = document.getElementById('detail-aspects');
+          const imageElement = document.getElementById('modal-image');
+          const imageEmpty = document.getElementById('image-empty');
+          const imagePrev = document.getElementById('image-prev');
+          const imageNext = document.getElementById('image-next');
+          const imageCounter = document.getElementById('image-counter');
+
+          let activeImages = [];
+          let activeImageIndex = 0;
+
+          if (!searchInput || rows.length === 0) {
+            return;
+          }
+
+          const formatAspects = (aspects) => {
+            if (!aspects || typeof aspects !== 'object') {
+              return '-';
+            }
+
+            const entries = Object.entries(aspects)
+              .map(([key, value]) => {
+                const normalized = Array.isArray(value) ? value : [value];
+                const clean = normalized
+                  .map((entry) => String(entry || '').trim())
+                  .filter(Boolean);
+                if (!clean.length) {
+                  return null;
+                }
+                return key + ': ' + clean.join(', ');
+              })
+              .filter(Boolean);
+
+            return entries.length ? entries.join(' | ') : '-';
+          };
+
+          const updateImage = () => {
+            if (!imageElement || !imageEmpty || !imageCounter || !imagePrev || !imageNext) {
+              return;
+            }
+
+            if (!activeImages.length) {
+              imageElement.hidden = true;
+              imageElement.removeAttribute('src');
+              imageEmpty.hidden = false;
+              imageCounter.textContent = '';
+              imagePrev.disabled = true;
+              imageNext.disabled = true;
+              return;
+            }
+
+            const imageUrl = activeImages[activeImageIndex] || '';
+            imageElement.src = imageUrl;
+            imageElement.hidden = false;
+            imageEmpty.hidden = true;
+            imageCounter.textContent = (activeImageIndex + 1) + ' / ' + activeImages.length;
+            const hasMany = activeImages.length > 1;
+            imagePrev.disabled = !hasMany;
+            imageNext.disabled = !hasMany;
+          };
+
+          const openModal = () => {
+            if (!modal) {
+              return;
+            }
+            modal.hidden = false;
+            document.body.classList.add('modal-open');
+          };
+
+          const closeModal = () => {
+            if (!modal) {
+              return;
+            }
+            modal.hidden = true;
+            document.body.classList.remove('modal-open');
+          };
+
+          const setLoadingState = (sku) => {
+            if (modalTitle) modalTitle.textContent = 'Loading ' + sku + '...';
+            if (detailSku) detailSku.textContent = sku || '-';
+            if (detailPrice) detailPrice.textContent = '-';
+            if (detailAge) detailAge.textContent = '-';
+            if (detailState) detailState.textContent = '-';
+            if (detailBin) detailBin.textContent = '-';
+            if (detailSn) detailSn.textContent = '-';
+            if (detailCategory) detailCategory.textContent = '-';
+            if (detailCondition) detailCondition.textContent = '-';
+            if (detailDescription) detailDescription.textContent = 'Loading details...';
+            if (detailAspects) detailAspects.textContent = '-';
+            if (detailEbayStatus) detailEbayStatus.textContent = 'checking ebay status...';
+            activeImages = [];
+            activeImageIndex = 0;
+            updateImage();
+          };
+
+          const setErrorState = (message) => {
+            if (modalTitle) modalTitle.textContent = 'Listing details';
+            if (detailDescription) detailDescription.textContent = message || 'Unable to load details.';
+          };
+
+          const fillDetails = (payload) => {
+            const listing = payload && payload.listing ? payload.listing : {};
+            const images = Array.isArray(payload && payload.images) ? payload.images : [];
+            const priceValue = Number.isFinite(Number(listing.price)) ? '$' + Number(listing.price).toFixed(2) : '-';
+            const ageValue = listing.ageDays === null || listing.ageDays === undefined ? '-' : String(listing.ageDays);
+
+            if (modalTitle) modalTitle.textContent = listing.title || 'Listing details';
+            if (detailSku) detailSku.textContent = listing.sku || '-';
+            if (detailPrice) detailPrice.textContent = priceValue;
+            if (detailAge) detailAge.textContent = ageValue;
+            if (detailState) detailState.textContent = listing.state || '-';
+            if (detailBin) detailBin.textContent = listing.bin === null || listing.bin === undefined ? '-' : String(listing.bin);
+            if (detailSn) detailSn.textContent = listing.sn === null || listing.sn === undefined ? '-' : String(listing.sn);
+            if (detailCategory) detailCategory.textContent = listing.categoryId || '-';
+            if (detailCondition) detailCondition.textContent = listing.condition || '-';
+            if (detailDescription) detailDescription.textContent = listing.description || '-';
+            if (detailAspects) detailAspects.textContent = formatAspects(listing.aspects);
+
+            if (detailEbayStatus) {
+              const ebayStatus = listing.ebayPostedStatus && typeof listing.ebayPostedStatus === 'object'
+                ? listing.ebayPostedStatus
+                : { status: 'UNKNOWN', message: 'cant verify ebay posting status' };
+              const statusLabel = ebayStatus.status ? String(ebayStatus.status) : 'UNKNOWN';
+              const statusMessage = ebayStatus.message ? String(ebayStatus.message) : '';
+              detailEbayStatus.textContent = statusMessage ? (statusLabel + ' - ' + statusMessage) : statusLabel;
+            }
+
+            activeImages = images;
+            activeImageIndex = 0;
+            updateImage();
+          };
+
+          const loadDetails = async (sku) => {
+            if (!sku) {
+              return;
+            }
+
+            openModal();
+            setLoadingState(sku);
+
+            try {
+              const response = await fetch('/api/listing/' + encodeURIComponent(sku) + '/details', {
+                method: 'GET',
+                headers: { Accept: 'application/json' },
+              });
+              const payload = await response.json().catch(() => ({}));
+
+              if (!response.ok || !payload || payload.ok !== true) {
+                throw new Error(payload && payload.error ? payload.error : 'Unable to load listing details.');
+              }
+
+              fillDetails(payload);
+            } catch (error) {
+              setErrorState(error && error.message ? error.message : 'Unable to load details.');
+            }
+          };
+
+          const applyFilter = () => {
+            const query = searchInput.value.trim().toLowerCase();
+            let visibleCount = 0;
+
+            rows.forEach((row) => {
+              const sku = (row.getAttribute('data-sku') || '').toLowerCase();
+              const visible = query === '' || sku.includes(query);
+              row.hidden = !visible;
+              if (visible) {
+                visibleCount += 1;
+              }
+            });
+
+            if (emptyRow) {
+              emptyRow.hidden = visibleCount > 0;
+            }
+          };
+
+          if (form) {
+            form.addEventListener('submit', (event) => {
+              event.preventDefault();
+            });
+          }
+
+          searchInput.addEventListener('input', applyFilter);
+
+          if (clearButton) {
+            clearButton.addEventListener('click', () => {
+              searchInput.value = '';
+              applyFilter();
+              searchInput.focus();
+            });
+          }
+
+          rows.forEach((row) => {
+            row.addEventListener('click', () => {
+              const sku = row.getAttribute('data-sku') || '';
+              loadDetails(sku);
+            });
+
+            row.addEventListener('keydown', (event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                const sku = row.getAttribute('data-sku') || '';
+                loadDetails(sku);
+              }
+            });
+          });
+
+          if (imagePrev) {
+            imagePrev.addEventListener('click', () => {
+              if (!activeImages.length) {
+                return;
+              }
+              activeImageIndex = (activeImageIndex - 1 + activeImages.length) % activeImages.length;
+              updateImage();
+            });
+          }
+
+          if (imageNext) {
+            imageNext.addEventListener('click', () => {
+              if (!activeImages.length) {
+                return;
+              }
+              activeImageIndex = (activeImageIndex + 1) % activeImages.length;
+              updateImage();
+            });
+          }
+
+          if (closeModalButton) {
+            closeModalButton.addEventListener('click', closeModal);
+          }
+
+          if (modalBackdrop) {
+            modalBackdrop.addEventListener('click', closeModal);
+          }
+
+          window.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && modal && !modal.hidden) {
+              closeModal();
+            }
+          });
+
+          applyFilter();
+        })();
+      </script>
     </div>
   </body>
 </html>

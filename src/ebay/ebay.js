@@ -376,6 +376,7 @@ async function postListing(info={
     };
 }
 async function ebaySetup() {
+    return {};
     await createLocation('home-inventory', {
         name: 'Main Inventory Location',
         merchantLocationStatus: 'ENABLED',
@@ -465,4 +466,71 @@ async function getActiveListings() {
 
     return listings;
 }
-module.exports = { getAllInventoryItems, postListing, createLocation, ebaySetup, getActiveListings };
+
+async function getInventoryItemBySku(sku) {
+    const response = await fetch(
+        `${getEbayApiBase()}/sell/inventory/v1/inventory_item/${encodeURIComponent(sku)}`,
+        {
+            method: "GET",
+            headers: getEbayJsonHeaders()
+        }
+    );
+
+    if (!response.ok) {
+        return null;
+    }
+
+    const data = await response.json().catch(() => ({}));
+    return data || null;
+}
+
+async function getEbayPostingStatusForSku(sku) {
+    const normalizedSku = typeof sku === 'string' ? sku.trim() : '';
+
+    if (!normalizedSku) {
+        return {
+            posted: false,
+            status: 'UNKNOWN',
+            message: 'missing sku'
+        };
+    }
+
+    const inventoryItem = await getInventoryItemBySku(normalizedSku);
+    const offers = await getOffersForSku(normalizedSku);
+    const publishedActiveOffer = offers.find(
+        (offer) => offer?.status === 'PUBLISHED' && offer?.listing?.listingStatus === 'ACTIVE'
+    );
+    const publishedOffer = offers.find((offer) => offer?.status === 'PUBLISHED');
+
+    if (publishedActiveOffer) {
+        return {
+            posted: true,
+            status: 'POSTED',
+            message: 'posted and active on ebay'
+        };
+    }
+
+    if (publishedOffer) {
+        return {
+            posted: true,
+            status: 'POSTED',
+            message: 'posted on ebay'
+        };
+    }
+
+    if (inventoryItem) {
+        return {
+            posted: false,
+            status: 'NOT_POSTED',
+            message: 'inventory item exists but no published offer'
+        };
+    }
+
+    return {
+        posted: false,
+        status: 'NOT_FOUND',
+        message: 'sku not found in ebay inventory'
+    };
+}
+
+module.exports = { getAllInventoryItems, postListing, createLocation, ebaySetup, getActiveListings, getEbayPostingStatusForSku };

@@ -2,9 +2,9 @@ const express = require('express');
 const path = require('path');
 const session = require('express-session');
 const EbayAuthToken = require('ebay-oauth-nodejs-client');
-const { getSupabase, isSupabaseConfigured } = require('./supabase/client');
+const { getSupabase, isSupabaseConfigured, getDashboardListings, getPendingListings, getListingDetailsBySku } = require('./supabase/client');
 const { getEbayAccessToken, getEbaySignInUrl, exchangeAuthCodeForTokens, getRequestedScopes } = require('./ebay');
-const { getActiveListings, ebaySetup } = require('./ebay/ebay');
+const { ebaySetup, getEbayPostingStatusForSku } = require('./ebay/ebay');
 const { types, getAspects } = require('./ebay/ebay_categories');
 const { generateImageModel1 } = require('./ebay/openai_image');
 const { generateSKU, generateListing } = require('./util/post_new_item');
@@ -99,29 +99,47 @@ app.get('/', (req, res) => {
 });
 
 app.get('/dashboard', requireAuth, async (req, res) => {
-	const hasEbayToken = await ensureEbayAccessToken(req);
-
-	if (!hasEbayToken) {
-		return res.status(500).render('dashboard', {
-			listings: [],
-			error: 'Unable to mint an eBay access token. Check EBAY_CLIENT_ID and EBAY_CLIENT_SECRET.',
-			currentUser: req.session.user,
-		});
-	}
-
 	let listings = [];
+	let pendingListings = [];
 	let error = null;
 
 	try {
-		if (process.env.EBAY_ACCESS_TOKEN || req.session.ebayAccessToken) {
-			listings = await getActiveListings();
+		if (!isSupabaseConfigured()) {
+			throw new Error('Database is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY.');
 		}
+
+		const [rows, pendingRows] = await Promise.all([
+			getDashboardListings(),
+			getPendingListings(),
+		]);
+		const now = Date.now();
+		const msPerDay = 1000 * 60 * 60 * 24;
+
+		listings = rows.map((row) => {
+			const createdAtValue = row.created_at ? Date.parse(row.created_at) : NaN;
+			const daysActive = Number.isFinite(createdAtValue)
+				? Math.max(0, Math.floor((now - createdAtValue) / msPerDay))
+				: null;
+
+			const parsedPrice = row.price === null || row.price === undefined ? NaN : Number(row.price);
+
+			return {
+				title: row.title || 'Untitled listing',
+				sku: row.sku || '—',
+				priceDisplay: Number.isFinite(parsedPrice) ? `$${parsedPrice.toFixed(2)}` : '—',
+				ageDisplay: daysActive === null ? '—' : String(daysActive),
+			};
+		});
+
+		pendingListings = Array.isArray(pendingRows) ? pendingRows : [];
 	} catch (err) {
-		error = err.message || 'Unable to load active listings.';
+		error = err.message || 'Unable to load listing table rows.';
 	}
 
 	return res.render('dashboard', {
 		listings,
+		pendingListings,
+		skuQuery: '',
 		error,
 		currentUser: req.session.user,
 	});
@@ -243,6 +261,71 @@ app.get('/listing/submitted', requireAuth, (req, res) => {
 		currentUser: req.session.user,
 		sku,
 	});
+});
+
+app.get('/api/listing/:sku/details', requireAuth, async (req, res) => {
+	const sku = typeof req.params.sku === 'string' ? req.params.sku.trim() : '';
+
+	if (!sku) {
+		return res.status(400).json({ error: 'SKU is required.' });
+	}
+
+	try {
+		if (!isSupabaseConfigured()) {
+			return res.status(500).json({ error: 'Database is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY.' });
+		}
+
+		const { listing, images } = await getListingDetailsBySku(sku);
+		const createdAtValue = listing?.created_at ? Date.parse(listing.created_at) : NaN;
+		const daysActive = Number.isFinite(createdAtValue)
+			? Math.max(0, Math.floor((Date.now() - createdAtValue) / (1000 * 60 * 60 * 24)))
+			: null;
+
+		let ebayPostedStatus = {
+			posted: false,
+			status: 'UNKNOWN',
+			message: 'cant verify ebay posting status'
+		};
+		try {
+			if (await ensureEbayAccessToken(req)) {
+				ebayPostedStatus = await getEbayPostingStatusForSku(sku);
+			} else {
+				ebayPostedStatus = {
+					posted: false,
+					status: 'UNKNOWN',
+					message: 'ebay token unavailable'
+				};
+			}
+		} catch (err) {
+			console.warn('[GET /api/listing/:sku/details] Unable to load eBay posting status:', err.message || err);
+		}
+
+		return res.json({
+			ok: true,
+			listing: {
+				title: listing?.title || 'Untitled listing',
+				description: listing?.description || '',
+				price: listing?.price === null || listing?.price === undefined ? null : Number(listing.price),
+				bin: listing?.bin ?? null,
+				sn: listing?.sn ?? null,
+				sku: listing?.sku || sku,
+				categoryId: listing?.category_id || null,
+				condition: listing?.condition || null,
+				aspects: listing?.aspects || {},
+				state: listing?.state || null,
+				createdAt: listing?.created_at || null,
+				ageDays: daysActive,
+				ebayPostedStatus,
+			},
+			images: images || [],
+		});
+	} catch (err) {
+		const message = err?.code === 'PGRST116'
+			? 'Listing not found for this SKU.'
+			: (err.message || 'Unable to load listing details.');
+
+		return res.status(err?.code === 'PGRST116' ? 404 : 500).json({ error: message });
+	}
 });
 
 app.post('/api/generate-listing-images', requireAuth, async (req, res) => {

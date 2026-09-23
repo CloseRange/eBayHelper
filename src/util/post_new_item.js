@@ -67,8 +67,11 @@ function formatAspects(aspects) {
 
     return result;
 }
+
+
 async function generateListing(frontImage64, backImage64, tagImage64, sku, info) {
     try {
+        db.updateListingState(sku, 1, 'N/A');
         const normalizedInfo = {
             ...(info || {}),
             features: info?.features ?? info?.aspects ?? {},
@@ -92,6 +95,7 @@ async function generateListing(frontImage64, backImage64, tagImage64, sku, info)
             console.error('Error generating images with OpenAI:', err);
             throw new Error('Failed to generate images. Please try again later.');
         }
+
         let modalAUrl = null;
         let modalBUrl = null;
         if (genData?.images) {
@@ -137,6 +141,8 @@ async function generateListing(frontImage64, backImage64, tagImage64, sku, info)
         }
         console.log('Tag Public URL:', tagPublicUrl);
 
+        db.updateListingState(sku, 6, 'N/A');
+
         const listingText = await generateListingText({
             imageDataFront: frontImage64,
             category: info.category || "Unknown",
@@ -146,6 +152,7 @@ async function generateListing(frontImage64, backImage64, tagImage64, sku, info)
         });
 
 
+        db.updateListingState(sku, 7, 'N/A');
         const bin = sku.split('-')[0];
         const sn = sku.split('-')[1];
         const listing = await db.createListing({
@@ -201,6 +208,7 @@ async function generateListing(frontImage64, backImage64, tagImage64, sku, info)
             backPublicUrl,
             tagPublicUrl,
         };
+        await db.deleteListingState(sku);
     } catch (err) {
         console.error('Error generating listing:', err);
         throw err;

@@ -3,14 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Create Listing | eBay Helper</title>
+    <title>Miyo Threads | Create Listing</title>
     <link rel="stylesheet" href="/css/listings.css" />
   </head>
   <body>
     <div class="page-shell narrow-shell">
       <header class="wizard-header">
         <div class="wizard-title-block">
-          <p class="eyebrow">New item</p>
+          <p class="eyebrow">miyo threads</p>
           <h1>Create listing</h1>
         </div>
         <a class="close-button" href="/dashboard" aria-label="Cancel and return to listings">×</a>
@@ -54,6 +54,10 @@
               <input type="hidden" id="category" name="category" value="" />
 
               <div class="select-options" role="listbox" aria-label="Category options">
+                <div class="select-search-wrap">
+                  <input type="search" class="select-search" placeholder="Search categories" autocomplete="off" data-search-input />
+                </div>
+                <div class="select-no-results" data-no-results hidden>No matches found</div>
                 <% categoryOptions.forEach((option) => { %>
                   <button
                     type="button"
@@ -71,8 +75,18 @@
         </section>
 
         <div class="wizard-actions">
-          <button type="button" class="secondary-btn" disabled>Back</button>
-          <button type="button" id="category-next" class="primary-btn" disabled>Next</button>
+          <button type="button" class="secondary-btn nav-btn" disabled>
+            <span class="nav-btn-icon nav-btn-icon-back" aria-hidden="true">
+              <img src="/icons/arrow-big-left.svg" alt="Back" />
+            </span>
+            <span>Back</span>
+          </button>
+          <button type="button" id="category-next" class="primary-btn nav-btn" disabled>
+            <span>Next</span>
+            <span class="nav-btn-icon" aria-hidden="true">
+              <img src="/icons/arrow-big-right.svg" alt="Next" />
+            </span>
+          </button>
         </div>
       <% } else if (currentStep === 'photos') { %>
         <section class="wizard-card">
@@ -146,8 +160,18 @@
         </section>
 
         <div class="wizard-actions">
-          <button type="button" class="secondary-btn" id="photos-back">Back</button>
-          <button type="button" id="photos-next" class="primary-btn" disabled>Next</button>
+          <button type="button" class="secondary-btn nav-btn" id="photos-back">
+            <span class="nav-btn-icon nav-btn-icon-back" aria-hidden="true">
+              <img src="/icons/arrow-big-left.svg" alt="Back" />
+            </span>
+            <span>Back</span>
+          </button>
+          <button type="button" id="photos-next" class="primary-btn nav-btn" disabled>
+            <span>Next</span>
+            <span class="nav-btn-icon" aria-hidden="true">
+              <img src="/icons/arrow-big-right.svg" alt="Next" />
+            </span>
+          </button>
         </div>
       <% } else if (currentStep === 'summary') { %>
         <section class="wizard-card">
@@ -205,8 +229,18 @@
         </section>
 
         <div class="wizard-actions">
-          <button type="button" class="secondary-btn" id="summary-back">Back</button>
-          <button type="button" id="summary-generate" class="primary-btn">Generate</button>
+          <button type="button" class="secondary-btn nav-btn" id="summary-back">
+            <span class="nav-btn-icon nav-btn-icon-back" aria-hidden="true">
+              <img src="/icons/arrow-big-left.svg" alt="Back" />
+            </span>
+            <span>Back</span>
+          </button>
+          <button type="button" id="summary-generate" class="primary-btn nav-btn">
+            <span>Generate</span>
+            <span class="nav-btn-icon" aria-hidden="true">
+              <img src="/icons/arrow-big-right.svg" alt="Generate" />
+            </span>
+          </button>
         </div>
       <% } else { %>
         <section class="wizard-card">
@@ -262,30 +296,6 @@
               <% }); %>
             </div>
 
-            <div class="aspect-section price-panel">
-              <div class="panel-header">
-                <h3>Price</h3>
-                <span class="panel-tag price-tag">Listing price</span>
-              </div>
-
-              <div class="price-input-wrap">
-                <label for="listing-price">Price</label>
-                <div class="price-field">
-                  <span class="currency-symbol">$</span>
-                  <input
-                    id="listing-price"
-                    type="text"
-                    inputmode="decimal"
-                    value="9.99"
-                    aria-label="Listing price"
-                  />
-                  <button type="button" id="listing-price-save" class="price-save-btn" aria-label="Save price">
-                    <img src="/icons/map-pin-check-inside.svg" alt="Check price" />
-                  </button>
-                </div>
-              </div>
-            </div>
-
             <div class="aspect-section optional-panel">
               <div class="panel-header">
                 <h3>Optional</h3>
@@ -328,8 +338,18 @@
         </section>
 
         <div class="wizard-actions">
-          <button type="button" class="secondary-btn" id="options-back">Back</button>
-          <button type="button" id="options-next" class="primary-btn" disabled>Next</button>
+          <button type="button" class="secondary-btn nav-btn" id="options-back">
+            <span class="nav-btn-icon nav-btn-icon-back" aria-hidden="true">
+              <img src="/icons/arrow-big-left.svg" alt="Back" />
+            </span>
+            <span>Back</span>
+          </button>
+          <button type="button" id="options-next" class="primary-btn nav-btn" disabled>
+            <span>Next</span>
+            <span class="nav-btn-icon" aria-hidden="true">
+              <img src="/icons/arrow-big-right.svg" alt="Next" />
+            </span>
+          </button>
         </div>
       <% } %>
     </div>
@@ -342,6 +362,8 @@
         const categoryNext = document.getElementById('category-next');
         const optionButtons = categorySelect.querySelectorAll('.select-option');
         const triggerText = categorySelect.querySelector('.select-trigger-text');
+        const searchInput = categorySelect.querySelector('[data-search-input]');
+        const noResults = categorySelect.querySelector('[data-no-results]');
 
         const syncCategoryNext = () => {
           if (categoryNext) {
@@ -352,13 +374,41 @@
         const closeMenu = () => {
           categorySelect.classList.remove('is-open');
           trigger.setAttribute('aria-expanded', 'false');
+          if (searchInput) {
+            searchInput.value = '';
+            optionButtons.forEach((button) => {
+              button.hidden = false;
+            });
+            if (noResults) noResults.hidden = true;
+          }
         };
 
         trigger.addEventListener('click', (event) => {
           event.stopPropagation();
           const isOpen = categorySelect.classList.toggle('is-open');
           trigger.setAttribute('aria-expanded', String(isOpen));
+          if (isOpen && searchInput) {
+            setTimeout(() => searchInput.focus(), 50);
+          }
         });
+
+        if (searchInput) {
+          searchInput.addEventListener('input', () => {
+            const query = searchInput.value.trim().toLowerCase();
+            let visibleCount = 0;
+
+            optionButtons.forEach((button) => {
+              const label = (button.dataset.label || button.textContent || '').toLowerCase();
+              const matches = !query || label.includes(query);
+              button.hidden = !matches;
+              if (matches) visibleCount += 1;
+            });
+
+            if (noResults) {
+              noResults.hidden = visibleCount > 0;
+            }
+          });
+        }
 
         optionButtons.forEach((button) => {
           button.addEventListener('click', () => {

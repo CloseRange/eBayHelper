@@ -1618,10 +1618,11 @@ Do not separately describe the garment.
             ]
         );
 
-    console.log(
-        "[generateImageModel1] model description:",
-        personDescription
-    );
+        db.updateListingState(sku, 2, 'N/A');
+    // console.log(
+    //     "[generateImageModel1] model description:",
+    //     personDescription
+    // );
 
 
     // ========================================================
@@ -1740,6 +1741,7 @@ Return ONLY:
             ]
         );
 
+        db.updateListingState(sku, 3, 'N/A');
     console.log(
         "[generateImageModel1] second pose:",
         pose2Description
@@ -1938,6 +1940,8 @@ for an online secondhand clothing listing.
         "[generateImageModel1] photo A complete."
     );
 
+            db.updateListingState(sku, 4, 'N/A');
+
 
     // ========================================================
     // TURN PHOTO A INTO REFERENCE
@@ -2110,6 +2114,7 @@ Create a photorealistic professional ecommerce fashion photograph.
     );
 
 
+            db.updateListingState(sku, 5, 'N/A');
     // ========================================================
     // VERIFY BOTH EXIST
     // ========================================================
