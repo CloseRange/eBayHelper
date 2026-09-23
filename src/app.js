@@ -341,7 +341,8 @@ app.post('/api/generate-listing-images', requireAuth, async (req, res) => {
 			});
 		}
 
-		const generated = await generateImageModel1(category, features, frontImage, backImage);
+		const sku = typeof req.body?.sku === 'string' ? req.body.sku.trim() : null;
+		const generated = await generateImageModel1(category, features, frontImage, backImage, sku);
 		return res.json({
 			ok: true,
 			modelDescription: generated?.modelDescription || null,

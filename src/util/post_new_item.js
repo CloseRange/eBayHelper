@@ -90,7 +90,7 @@ async function generateListing(frontImage64, backImage64, tagImage64, sku, info)
         }
         var genData = null;
         try {
-            genData = await generateImageModel1(info.category, info.features, frontImage64, backImage64);
+            genData = await generateImageModel1(info.category, info.features, frontImage64, backImage64, sku);
         } catch (err) {
             console.error('Error generating images with OpenAI:', err);
             throw new Error('Failed to generate images. Please try again later.');
