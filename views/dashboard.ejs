@@ -196,6 +196,8 @@
           let scannerFrameId = null;
           let barcodeDetector = null;
           let scannerRunning = false;
+          let zxingReader = null;
+          let zxingReaderPromise = null;
 
           if (!searchInput) {
             return;
@@ -267,9 +269,31 @@
               scannerVideo.srcObject = null;
             }
 
+            if (zxingReader && typeof zxingReader.reset === 'function') {
+              zxingReader.reset();
+            }
+
             if (scannerPanel) {
               scannerPanel.hidden = true;
             }
+          };
+
+          const getZxingReader = async () => {
+            if (zxingReader) {
+              return zxingReader;
+            }
+
+            if (!zxingReaderPromise) {
+              zxingReaderPromise = import('https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm')
+                .then((module) => {
+                  zxingReader = new module.BrowserMultiFormatReader(undefined, {
+                    delayBetweenScanAttempts: 90,
+                  });
+                  return zxingReader;
+                });
+            }
+
+            return zxingReaderPromise;
           };
 
           const handleScanValue = (rawValue) => {
@@ -329,19 +353,41 @@
               return;
             }
 
-            if (!('BarcodeDetector' in window)) {
-              setScannerStatus('Barcode scanning is not supported on this browser.');
-              scannerPanel.hidden = false;
-              return;
+            stopScanner();
+            scannerPanel.hidden = false;
+            setScannerStatus('Starting camera...');
+
+            if ('BarcodeDetector' in window) {
+              try {
+                barcodeDetector = new window.BarcodeDetector({
+                  formats: ['code_128', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_39', 'itf'],
+                });
+              } catch (detectorError) {
+                barcodeDetector = null;
+              }
             }
 
-            try {
-              barcodeDetector = new window.BarcodeDetector({
-                formats: ['code_128', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_39', 'itf'],
-              });
-            } catch (detectorError) {
-              setScannerStatus('Barcode scanner is unavailable in this browser.');
-              scannerPanel.hidden = false;
+            if (barcodeDetector) {
+              try {
+                if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+                  throw new Error('Camera API unavailable');
+                }
+
+                scannerStream = await navigator.mediaDevices.getUserMedia({
+                  video: {
+                    facingMode: { ideal: 'environment' },
+                  },
+                  audio: false,
+                });
+              } catch (cameraError) {
+                setScannerStatus('Camera access was blocked or unavailable.');
+                return;
+              }
+
+              scannerVideo.srcObject = scannerStream;
+              setScannerStatus('Point your camera at a SKU barcode.');
+              scannerRunning = true;
+              void scanLoop();
               return;
             }
 
@@ -350,24 +396,36 @@
                 throw new Error('Camera API unavailable');
               }
 
-              scannerStream = await navigator.mediaDevices.getUserMedia({
-                video: {
-                  facingMode: { ideal: 'environment' },
-                },
-                audio: false,
+              const reader = await getZxingReader();
+              scannerRunning = true;
+              setScannerStatus('Point your camera at a SKU barcode.');
+
+              await reader.decodeFromVideoDevice(undefined, scannerVideo, (result) => {
+                if (!scannerRunning || !result) {
+                  return;
+                }
+
+                const rawValue = typeof result.getText === 'function'
+                  ? result.getText()
+                  : '';
+
+                if (!handleScanValue(rawValue)) {
+                  return;
+                }
+
+                const matched = findRowBySku(normalizeScannedSku(rawValue));
+                if (matched) {
+                  setScannerStatus('Found SKU. Opening listing...');
+                } else {
+                  setScannerStatus('Scanned SKU not found. Added to search.');
+                }
+
+                stopScanner();
               });
-            } catch (cameraError) {
-              setScannerStatus('Camera access was blocked or unavailable.');
-              scannerPanel.hidden = false;
-              return;
+            } catch (fallbackError) {
+              scannerRunning = false;
+              setScannerStatus('Unable to start barcode scanning on this device.');
             }
-
-            scannerVideo.srcObject = scannerStream;
-            scannerPanel.hidden = false;
-            setScannerStatus('Point your camera at a SKU barcode.');
-
-            scannerRunning = true;
-            void scanLoop();
           };
 
           const openModal = () => {
