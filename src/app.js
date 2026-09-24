@@ -8,7 +8,7 @@ const { ebaySetup, getEbayPostingStatusForSku, getActiveListings, updateListingP
 const { types, getAspects } = require('./ebay/ebay_categories');
 const { generateImageModel1 } = require('./ebay/openai_image');
 const { generateSKU, generateListing } = require('./util/post_new_item');
-const { generatePrintAndDiscardSkuLabelPdf } = require('./util/sku_label_pdf');
+const { generatePrintAndDiscardSkuLabelPdf, generateSkuLabelPdf } = require('./util/sku_label_pdf');
 const { beginMint, endMint, getAccessToken } = require('./ebay/minting');
 const debug = require('./debug/debug');
 
@@ -499,6 +499,29 @@ app.get('/api/listing/:sku/details', requireAuth, async (req, res) => {
 			: (err.message || 'Unable to load listing details.');
 
 		return res.status(err?.code === 'PGRST116' ? 404 : 500).json({ error: message });
+	}
+});
+
+app.get('/api/listing/:sku/label.pdf', requireAuth, async (req, res) => {
+	const sku = typeof req.params.sku === 'string' ? req.params.sku.trim() : '';
+	console.log('[GET /api/listing/:sku/label.pdf] requested sku=', sku || '(empty)');
+
+	if (!sku) {
+		return res.status(400).json({ error: 'SKU is required.' });
+	}
+
+	try {
+		const pdfBuffer = await generateSkuLabelPdf(sku);
+		const safeSku = sku.replace(/[^a-zA-Z0-9._-]/g, '_');
+
+		res.setHeader('Content-Type', 'application/pdf');
+		res.setHeader('Content-Disposition', `inline; filename="sku-label-${safeSku}.pdf"`);
+		return res.send(pdfBuffer);
+	} catch (err) {
+		console.error('[GET /api/listing/:sku/label.pdf] Failed:', err.message || err);
+		return res.status(500).json({
+			error: err && err.message ? err.message : 'Unable to generate SKU label PDF.',
+		});
 	}
 });
 

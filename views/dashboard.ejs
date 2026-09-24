@@ -319,28 +319,71 @@
               return;
             }
 
+            const printPopup = window.open('about:blank', '_blank');
+            if (!printPopup) {
+              if (printSkuStatus) {
+                printSkuStatus.textContent = 'Popup blocked. Allow popups, then try again.';
+              }
+              return;
+            }
+
+            printPopup.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Preparing label...</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:20px;color:#1f2937}p{margin:0 0 12px}</style></head><body><p>Preparing SKU label...</p><p>If print does not start automatically, use Cmd+P.</p></body></html>');
+            printPopup.document.close();
+
             printSkuButton.disabled = true;
             if (printSkuStatus) {
               printSkuStatus.textContent = 'Printing...';
             }
 
             try {
-              const response = await fetch('/api/listing/' + encodeURIComponent(activeSku) + '/print-label', {
-                method: 'POST',
+              const response = await fetch('/api/listing/' + encodeURIComponent(activeSku) + '/label.pdf', {
+                method: 'GET',
                 headers: {
-                  Accept: 'application/json',
+                  Accept: 'application/pdf',
                 },
               });
 
-              const payload = await response.json().catch(() => ({}));
-              if (!response.ok || !payload || payload.ok !== true) {
-                throw new Error(payload && payload.error ? payload.error : 'Unable to print SKU label.');
+              if (!response.ok) {
+                const contentType = response.headers.get('content-type') || '';
+                if (contentType.includes('application/json')) {
+                  const payload = await response.json().catch(() => ({}));
+                  throw new Error(payload && payload.error ? payload.error : 'Unable to print SKU label.');
+                }
+                throw new Error('Unable to print SKU label.');
               }
 
+              const pdfBlob = await response.blob();
+              if (!pdfBlob || pdfBlob.size === 0) {
+                throw new Error('Received an empty label PDF.');
+              }
+
+              console.log('[print-sku] fetched PDF bytes:', pdfBlob.size);
+              const pdfUrl = URL.createObjectURL(pdfBlob);
+
+              printPopup.location.replace(pdfUrl);
+
+              window.setTimeout(() => {
+                try {
+                  printPopup.focus();
+                  printPopup.print();
+                } catch (printError) {
+                  console.warn('[print-sku] popup print call failed:', printError);
+                }
+              }, 700);
+
+              window.setTimeout(() => {
+                URL.revokeObjectURL(pdfUrl);
+              }, 120000);
+
               if (printSkuStatus) {
-                printSkuStatus.textContent = 'Printed.';
+                printSkuStatus.textContent = 'Label PDF opened. If print dialog does not appear, press Cmd+P in the new tab.';
               }
             } catch (error) {
+              try {
+                printPopup.close();
+              } catch (closeError) {
+                // noop
+              }
               if (printSkuStatus) {
                 printSkuStatus.textContent = error && error.message ? error.message : 'Unable to print SKU label.';
               }
