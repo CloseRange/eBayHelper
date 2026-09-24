@@ -36,9 +36,19 @@
             placeholder="Enter SKU"
             autocomplete="off"
           />
-          <button type="button" class="clear-search" id="clear-sku-search">Clear</button>
+          <button type="button" class="scan-search-button" id="scan-sku-button" aria-label="Scan barcode" title="Scan barcode">
+            <img src="/icons/scan-barcode.svg" alt="" />
+          </button>
         </div>
       </form>
+
+      <section class="scanner-panel" id="scanner-panel" hidden>
+        <video id="scanner-video" autoplay playsinline muted></video>
+        <div class="scanner-actions">
+          <p id="scanner-status" aria-live="polite">Point your camera at a SKU barcode.</p>
+          <button type="button" class="scan-search-button scanner-close-button" id="scanner-close-button" aria-label="Close scanner">Close</button>
+        </div>
+      </section>
 
       <% if (error) { %>
         <div class="status-banner error"><%= error %></div>
@@ -149,7 +159,11 @@
         (function () {
           const form = document.getElementById('sku-search-form');
           const searchInput = document.getElementById('sku-search');
-          const clearButton = document.getElementById('clear-sku-search');
+          const scanSkuButton = document.getElementById('scan-sku-button');
+          const scannerPanel = document.getElementById('scanner-panel');
+          const scannerVideo = document.getElementById('scanner-video');
+          const scannerStatus = document.getElementById('scanner-status');
+          const scannerCloseButton = document.getElementById('scanner-close-button');
           const rows = Array.from(document.querySelectorAll('.data-row'));
           const emptyRow = document.getElementById('search-empty-row');
           const modal = document.getElementById('listing-modal');
@@ -178,8 +192,12 @@
           let activeImageIndex = 0;
           let activeSku = '';
           let activeRow = null;
+          let scannerStream = null;
+          let scannerFrameId = null;
+          let barcodeDetector = null;
+          let scannerRunning = false;
 
-          if (!searchInput || rows.length === 0) {
+          if (!searchInput) {
             return;
           }
 
@@ -206,6 +224,150 @@
             const hasMany = activeImages.length > 1;
             imagePrev.disabled = !hasMany;
             imageNext.disabled = !hasMany;
+          };
+
+          const setScannerStatus = (message) => {
+            if (scannerStatus) {
+              scannerStatus.textContent = message;
+            }
+          };
+
+          const normalizeScannedSku = (value) => {
+            return String(value || '')
+              .replace(/\s+/g, '')
+              .trim();
+          };
+
+          const findRowBySku = (sku) => {
+            const target = String(sku || '').trim().toLowerCase();
+            if (!target) {
+              return null;
+            }
+
+            return rows.find((row) => {
+              const rowSku = (row.getAttribute('data-sku') || '').trim().toLowerCase();
+              return rowSku === target;
+            }) || null;
+          };
+
+          const stopScanner = () => {
+            scannerRunning = false;
+
+            if (scannerFrameId) {
+              cancelAnimationFrame(scannerFrameId);
+              scannerFrameId = null;
+            }
+
+            if (scannerStream) {
+              scannerStream.getTracks().forEach((track) => track.stop());
+              scannerStream = null;
+            }
+
+            if (scannerVideo) {
+              scannerVideo.srcObject = null;
+            }
+
+            if (scannerPanel) {
+              scannerPanel.hidden = true;
+            }
+          };
+
+          const handleScanValue = (rawValue) => {
+            const scannedSku = normalizeScannedSku(rawValue);
+            if (!scannedSku) {
+              return false;
+            }
+
+            if (searchInput) {
+              searchInput.value = scannedSku;
+            }
+            applyFilter();
+
+            const matchedRow = findRowBySku(scannedSku);
+            if (matchedRow) {
+              activeRow = matchedRow;
+              loadDetails(scannedSku);
+            }
+
+            return true;
+          };
+
+          const scanLoop = async () => {
+            if (!scannerRunning || !barcodeDetector || !scannerVideo) {
+              return;
+            }
+
+            try {
+              const detections = await barcodeDetector.detect(scannerVideo);
+              if (Array.isArray(detections) && detections.length) {
+                const firstCode = detections[0] && detections[0].rawValue
+                  ? String(detections[0].rawValue)
+                  : '';
+
+                if (handleScanValue(firstCode)) {
+                  const matched = findRowBySku(normalizeScannedSku(firstCode));
+                  if (matched) {
+                    setScannerStatus('Found SKU. Opening listing...');
+                  } else {
+                    setScannerStatus('Scanned SKU not found. Added to search.');
+                  }
+                  stopScanner();
+                  return;
+                }
+              }
+            } catch (scanError) {
+              setScannerStatus('Unable to read barcode. Try holding steadier.');
+            }
+
+            scannerFrameId = requestAnimationFrame(() => {
+              void scanLoop();
+            });
+          };
+
+          const openScanner = async () => {
+            if (!scannerPanel || !scannerVideo) {
+              return;
+            }
+
+            if (!('BarcodeDetector' in window)) {
+              setScannerStatus('Barcode scanning is not supported on this browser.');
+              scannerPanel.hidden = false;
+              return;
+            }
+
+            try {
+              barcodeDetector = new window.BarcodeDetector({
+                formats: ['code_128', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_39', 'itf'],
+              });
+            } catch (detectorError) {
+              setScannerStatus('Barcode scanner is unavailable in this browser.');
+              scannerPanel.hidden = false;
+              return;
+            }
+
+            try {
+              if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+                throw new Error('Camera API unavailable');
+              }
+
+              scannerStream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                  facingMode: { ideal: 'environment' },
+                },
+                audio: false,
+              });
+            } catch (cameraError) {
+              setScannerStatus('Camera access was blocked or unavailable.');
+              scannerPanel.hidden = false;
+              return;
+            }
+
+            scannerVideo.srcObject = scannerStream;
+            scannerPanel.hidden = false;
+            setScannerStatus('Point your camera at a SKU barcode.');
+
+            scannerRunning = true;
+            void scanLoop();
           };
 
           const openModal = () => {
@@ -503,11 +665,15 @@
 
           searchInput.addEventListener('input', applyFilter);
 
-          if (clearButton) {
-            clearButton.addEventListener('click', () => {
-              searchInput.value = '';
-              applyFilter();
-              searchInput.focus();
+          if (scanSkuButton) {
+            scanSkuButton.addEventListener('click', () => {
+              void openScanner();
+            });
+          }
+
+          if (scannerCloseButton) {
+            scannerCloseButton.addEventListener('click', () => {
+              stopScanner();
             });
           }
 
@@ -567,6 +733,11 @@
           window.addEventListener('keydown', (event) => {
             if (event.key === 'Escape' && modal && !modal.hidden) {
               closeModal();
+              return;
+            }
+
+            if (event.key === 'Escape' && scannerPanel && !scannerPanel.hidden) {
+              stopScanner();
             }
           });
 
