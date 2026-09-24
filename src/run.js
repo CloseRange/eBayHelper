@@ -11,7 +11,7 @@ const { generateSKU } = require('./util/post_new_item');
 const EbayAuthToken = require('ebay-oauth-nodejs-client');
 const { env } = require('process');
 
-const { generateSkuLabelPdfFile } = require('./util/sku_label_pdf');
+const { generatePrintAndDiscardSkuLabelPdf, printPdfFile } = require('./util/sku_label_pdf');
 
 
 async function main() {
@@ -73,10 +73,10 @@ async function main() {
       // }
       
 
-      await generateSkuLabelPdfFile("021-112", "output.pdf");
+      await generatePrintAndDiscardSkuLabelPdf("021-112");
 
   } catch (err) {
-    console.error('Error fetching eBay policies:', err.message || err);
+    console.error(err);
   }
 }
 async function getPaymentPolicies() {

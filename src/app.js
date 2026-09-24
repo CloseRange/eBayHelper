@@ -8,6 +8,7 @@ const { ebaySetup, getEbayPostingStatusForSku, getActiveListings, updateListingP
 const { types, getAspects } = require('./ebay/ebay_categories');
 const { generateImageModel1 } = require('./ebay/openai_image');
 const { generateSKU, generateListing } = require('./util/post_new_item');
+const { generatePrintAndDiscardSkuLabelPdf } = require('./util/sku_label_pdf');
 const { beginMint, endMint, getAccessToken } = require('./ebay/minting');
 const debug = require('./debug/debug');
 
@@ -498,6 +499,24 @@ app.get('/api/listing/:sku/details', requireAuth, async (req, res) => {
 			: (err.message || 'Unable to load listing details.');
 
 		return res.status(err?.code === 'PGRST116' ? 404 : 500).json({ error: message });
+	}
+});
+
+app.post('/api/listing/:sku/print-label', requireAuth, async (req, res) => {
+	const sku = typeof req.params.sku === 'string' ? req.params.sku.trim() : '';
+
+	if (!sku) {
+		return res.status(400).json({ error: 'SKU is required.' });
+	}
+
+	try {
+		await generatePrintAndDiscardSkuLabelPdf(sku);
+		return res.json({ ok: true, sku, printed: true });
+	} catch (err) {
+		console.error('[POST /api/listing/:sku/print-label] Failed:', err.message || err);
+		return res.status(500).json({
+			error: err && err.message ? err.message : 'Unable to print SKU label.',
+		});
 	}
 });
 

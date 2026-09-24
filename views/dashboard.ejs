@@ -134,6 +134,11 @@
             <div class="full-row"><dt>Description</dt><dd id="detail-description">-</dd></div>
             <div class="full-row"><dt>Aspects</dt><dd id="detail-aspects">-</dd></div>
           </dl>
+
+          <div class="modal-actions">
+            <button type="button" class="print-sku-button" id="print-sku-label-button" disabled>Print SKU Label</button>
+            <p class="print-sku-status" id="print-sku-status" aria-live="polite"></p>
+          </div>
         </article>
       </section>
 
@@ -163,6 +168,8 @@
           const imagePrev = document.getElementById('image-prev');
           const imageNext = document.getElementById('image-next');
           const imageCounter = document.getElementById('image-counter');
+          const printSkuButton = document.getElementById('print-sku-label-button');
+          const printSkuStatus = document.getElementById('print-sku-status');
 
           document.querySelectorAll('.state-dot[data-state-color]').forEach((dot) => {
             const color = dot.getAttribute('data-state-color') || '#B8A4E3';
@@ -171,6 +178,7 @@
 
           let activeImages = [];
           let activeImageIndex = 0;
+          let activeSku = '';
 
           if (!searchInput || rows.length === 0) {
             return;
@@ -236,6 +244,9 @@
             }
             modal.hidden = true;
             document.body.classList.remove('modal-open');
+            if (printSkuStatus) {
+              printSkuStatus.textContent = '';
+            }
           };
 
           const setLoadingState = (sku) => {
@@ -250,6 +261,13 @@
             if (detailDescription) detailDescription.textContent = 'Loading details...';
             if (detailAspects) detailAspects.textContent = '-';
             if (detailEbayStatus) detailEbayStatus.textContent = 'checking ebay status...';
+            activeSku = sku || '';
+            if (printSkuButton) {
+              printSkuButton.disabled = !activeSku;
+            }
+            if (printSkuStatus) {
+              printSkuStatus.textContent = '';
+            }
             activeImages = [];
             activeImageIndex = 0;
             updateImage();
@@ -286,9 +304,51 @@
               detailEbayStatus.textContent = statusMessage ? (statusLabel + ' - ' + statusMessage) : statusLabel;
             }
 
+            activeSku = listing.sku ? String(listing.sku).trim() : '';
+            if (printSkuButton) {
+              printSkuButton.disabled = !activeSku;
+            }
+
             activeImages = images;
             activeImageIndex = 0;
             updateImage();
+          };
+
+          const printSkuLabel = async () => {
+            if (!activeSku || !printSkuButton) {
+              return;
+            }
+
+            printSkuButton.disabled = true;
+            if (printSkuStatus) {
+              printSkuStatus.textContent = 'Printing...';
+            }
+
+            try {
+              const response = await fetch('/api/listing/' + encodeURIComponent(activeSku) + '/print-label', {
+                method: 'POST',
+                headers: {
+                  Accept: 'application/json',
+                },
+              });
+
+              const payload = await response.json().catch(() => ({}));
+              if (!response.ok || !payload || payload.ok !== true) {
+                throw new Error(payload && payload.error ? payload.error : 'Unable to print SKU label.');
+              }
+
+              if (printSkuStatus) {
+                printSkuStatus.textContent = 'Printed.';
+              }
+            } catch (error) {
+              if (printSkuStatus) {
+                printSkuStatus.textContent = error && error.message ? error.message : 'Unable to print SKU label.';
+              }
+            } finally {
+              if (printSkuButton) {
+                printSkuButton.disabled = !activeSku;
+              }
+            }
           };
 
           const loadDetails = async (sku) => {
@@ -391,6 +451,10 @@
 
           if (modalBackdrop) {
             modalBackdrop.addEventListener('click', closeModal);
+          }
+
+          if (printSkuButton) {
+            printSkuButton.addEventListener('click', printSkuLabel);
           }
 
           window.addEventListener('keydown', (event) => {
