@@ -907,8 +907,26 @@ img {
 }
 
 .brand-lockup {
-  display: grid;
-  gap: 6px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-logo-mark {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  display: block;
+  filter: drop-shadow(0 8px 14px rgba(50, 43, 59, 0.12));
+}
+
+.brand-wordmark {
+  margin: 0;
+  font-size: clamp(1.1rem, 3vw, 1.8rem);
+  font-weight: 900;
+  letter-spacing: -0.07em;
+  color: var(--deep-plum);
+  line-height: 0.95;
 }
 
 .compact-topbar {
