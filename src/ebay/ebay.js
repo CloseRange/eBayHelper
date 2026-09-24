@@ -533,6 +533,81 @@ async function getEbayPostingStatusForSku(sku) {
         message: 'sku not found in ebay inventory'
     };
 }
+
+async function getEbayListingDetailsForSku(sku) {
+    const normalizedSku = typeof sku === 'string' ? sku.trim() : '';
+
+    if (!normalizedSku) {
+        return {
+            found: false,
+            status: 'UNKNOWN',
+            message: 'missing sku',
+            inventoryItem: null,
+            offers: [],
+            primaryOffer: null,
+            activeOffer: null,
+        };
+    }
+
+    const [inventoryItem, offers] = await Promise.all([
+        getInventoryItemBySku(normalizedSku),
+        getOffersForSku(normalizedSku),
+    ]);
+
+    const safeOffers = Array.isArray(offers) ? offers : [];
+    const activeOffer = safeOffers.find(
+        (offer) => offer?.status === 'PUBLISHED' && offer?.listing?.listingStatus === 'ACTIVE'
+    ) || null;
+    const publishedOffer = safeOffers.find((offer) => offer?.status === 'PUBLISHED') || null;
+    const primaryOffer = activeOffer || publishedOffer || safeOffers[0] || null;
+
+    if (activeOffer) {
+        return {
+            found: true,
+            status: 'ACTIVE',
+            message: 'posted and active on ebay',
+            inventoryItem,
+            offers: safeOffers,
+            primaryOffer,
+            activeOffer,
+        };
+    }
+
+    if (publishedOffer) {
+        return {
+            found: true,
+            status: 'POSTED',
+            message: 'posted on ebay',
+            inventoryItem,
+            offers: safeOffers,
+            primaryOffer,
+            activeOffer,
+        };
+    }
+
+    if (inventoryItem || safeOffers.length) {
+        return {
+            found: true,
+            status: 'NOT_ACTIVE',
+            message: 'inventory exists but no active listing',
+            inventoryItem,
+            offers: safeOffers,
+            primaryOffer,
+            activeOffer,
+        };
+    }
+
+    return {
+        found: false,
+        status: 'NOT_FOUND',
+        message: 'sku not found in ebay inventory',
+        inventoryItem: null,
+        offers: safeOffers,
+        primaryOffer,
+        activeOffer,
+    };
+}
+
 async function updateListingPrice(sku, newPrice) {
     // --------------------------------------------------------
     // VALIDATE INPUT
@@ -684,4 +759,4 @@ async function updateListingPrice(sku, newPrice) {
     };
 }
 
-module.exports = { getAllInventoryItems, postListing, createLocation, ebaySetup, getActiveListings, getEbayPostingStatusForSku, updateListingPrice };
+module.exports = { getAllInventoryItems, postListing, createLocation, ebaySetup, getActiveListings, getEbayPostingStatusForSku, getEbayListingDetailsForSku, updateListingPrice };

@@ -2,9 +2,9 @@ const express = require('express');
 const path = require('path');
 const session = require('express-session');
 const EbayAuthToken = require('ebay-oauth-nodejs-client');
-const { getSupabase, isSupabaseConfigured, getDashboardListings, getPendingListings, getLogs, getPriceRates, getListingsForPriceRateCheck, savePriceRate, deletePriceRate, getListingDetailsBySku } = require('./supabase/client');
+const { getSupabase, isSupabaseConfigured, getDashboardListings, getPendingListings, getLogs, getPriceRates, getListingsForPriceRateCheck, savePriceRate, deletePriceRate, getListingDetailsBySku, deleteListingAndAssetsBySku } = require('./supabase/client');
 const { getEbayAccessToken, getEbaySignInUrl, exchangeAuthCodeForTokens, getRequestedScopes } = require('./ebay');
-const { ebaySetup, getEbayPostingStatusForSku, getActiveListings, updateListingPrice } = require('./ebay/ebay');
+const { ebaySetup, getEbayPostingStatusForSku, getActiveListings, getEbayListingDetailsForSku, updateListingPrice } = require('./ebay/ebay');
 const { types, getAspects } = require('./ebay/ebay_categories');
 const { generateImageModel1 } = require('./ebay/openai_image');
 const { generateSKU, generateListing } = require('./util/post_new_item');
@@ -437,6 +437,80 @@ app.get('/listing/submitted', requireAuth, (req, res) => {
 	});
 });
 
+app.get('/listing/:sku', requireAuth, async (req, res) => {
+	const sku = typeof req.params.sku === 'string' ? req.params.sku.trim() : '';
+
+	if (!sku) {
+		return res.redirect('/dashboard');
+	}
+
+	if (!isSupabaseConfigured()) {
+		return res.render('dashboard', {
+			listings: [],
+			pendingListings: [],
+			skuQuery: '',
+			error: 'Database is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY.',
+			ebayConnectionError: null,
+			currentUser: req.session.user,
+		});
+	}
+
+	try {
+		const { listing, images } = await getListingDetailsBySku(sku);
+
+		let ebayDetails = {
+			status: 'UNKNOWN',
+			message: 'cant verify ebay listing details',
+			inventoryItem: null,
+			primaryOffer: null,
+			offerCount: 0,
+		};
+
+		try {
+			if (await ensureEbayAccessToken(req)) {
+				const ebayData = await getEbayListingDetailsForSku(sku);
+				ebayDetails = {
+					status: ebayData?.status || 'UNKNOWN',
+					message: ebayData?.message || '',
+					inventoryItem: ebayData?.inventoryItem || null,
+					primaryOffer: ebayData?.primaryOffer || null,
+					offerCount: Array.isArray(ebayData?.offers) ? ebayData.offers.length : 0,
+				};
+			}
+		} catch (ebayErr) {
+			console.warn('[GET /listing/:sku] Unable to load eBay listing details:', ebayErr.message || ebayErr);
+		}
+
+		return res.render('listing-details', {
+			currentUser: req.session.user,
+			sku,
+			listing: listing || null,
+			images: Array.isArray(images) ? images : [],
+			ebayDetails,
+			error: null,
+		});
+	} catch (err) {
+		const message = err?.code === 'PGRST116'
+			? 'Listing not found for this SKU.'
+			: (err.message || 'Unable to load listing details.');
+
+		return res.status(err?.code === 'PGRST116' ? 404 : 500).render('listing-details', {
+			currentUser: req.session.user,
+			sku,
+			listing: null,
+			images: [],
+			ebayDetails: {
+				status: 'UNKNOWN',
+				message: '',
+				inventoryItem: null,
+				primaryOffer: null,
+				offerCount: 0,
+			},
+			error: message,
+		});
+	}
+});
+
 app.get('/api/listing/:sku/details', requireAuth, async (req, res) => {
 	const sku = typeof req.params.sku === 'string' ? req.params.sku.trim() : '';
 
@@ -498,6 +572,35 @@ app.get('/api/listing/:sku/details', requireAuth, async (req, res) => {
 			? 'Listing not found for this SKU.'
 			: (err.message || 'Unable to load listing details.');
 
+		return res.status(err?.code === 'PGRST116' ? 404 : 500).json({ error: message });
+	}
+});
+
+app.delete('/api/listing/:sku', requireAuth, async (req, res) => {
+	const sku = typeof req.params.sku === 'string' ? req.params.sku.trim() : '';
+
+	if (!sku) {
+		return res.status(400).json({ error: 'SKU is required.' });
+	}
+
+	try {
+		if (!isSupabaseConfigured()) {
+			return res.status(500).json({ error: 'Database is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY.' });
+		}
+
+		const result = await deleteListingAndAssetsBySku(sku);
+		return res.json({
+			ok: true,
+			sku: result.sku,
+			deletedListing: true,
+			deletedImages: result.deletedImages,
+		});
+	} catch (err) {
+		const message = err?.code === 'PGRST116'
+			? 'Listing not found for this SKU.'
+			: (err.message || 'Unable to delete listing.');
+
+		console.error('[DELETE /api/listing/:sku] Failed:', err.message || err);
 		return res.status(err?.code === 'PGRST116' ? 404 : 500).json({ error: message });
 	}
 });

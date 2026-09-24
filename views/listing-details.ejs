@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nine Lives Vintage | Listing Details</title>
+    <link rel="stylesheet" href="/css/listings.css" />
+  </head>
+  <body>
+    <div class="page-shell narrow-shell">
+      <header class="wizard-header">
+        <div class="wizard-title-block">
+          <div class="brand-lockup">
+            <img src="/res/logo-brand.png" alt="Nine Lives Vintage logo" class="brand-logo-mark" />
+            <p class="brand-wordmark">Nine Lives Vintage</p>
+          </div>
+          <h1>Listing Details</h1>
+        </div>
+        <a class="close-button" href="/dashboard" aria-label="Close and return to dashboard">x</a>
+      </header>
+
+      <% if (error) { %>
+        <div class="status-banner error"><%= error %></div>
+      <% } %>
+
+      <div class="details-page-grid">
+        <section class="details-card" aria-label="Summary details">
+          <h2>Summary</h2>
+          <dl class="details-value-list">
+            <div><dt>Title</dt><dd><%= listing?.title || '-' %></dd></div>
+            <div><dt>Description</dt><dd><%= listing?.description || '-' %></dd></div>
+            <div><dt>SKU</dt><dd><%= sku || '-' %></dd></div>
+            <div><dt>Price</dt><dd><%= Number.isFinite(Number(listing?.price)) ? ('$' + Number(listing.price).toFixed(2)) : '-' %></dd></div>
+          </dl>
+        </section>
+
+        <section class="details-card" aria-label="Local listing details">
+          <h2>Local Database Details</h2>
+          <dl class="details-value-list">
+            <div><dt>BIN</dt><dd><%= listing?.bin ?? '-' %></dd></div>
+            <div><dt>SN</dt><dd><%= listing?.sn ?? '-' %></dd></div>
+            <div><dt>Category</dt><dd><%= listing?.category_id || '-' %></dd></div>
+            <div><dt>Condition</dt><dd><%= listing?.condition || '-' %></dd></div>
+            <div><dt>State</dt><dd><%= listing?.state || '-' %></dd></div>
+            <div><dt>Created At</dt><dd><%= listing?.created_at || '-' %></dd></div>
+            <div><dt>Aspects</dt><dd><%= listing?.aspects ? JSON.stringify(listing.aspects, null, 2) : '-' %></dd></div>
+          </dl>
+        </section>
+
+        <section class="details-card" aria-label="eBay details">
+          <h2>eBay Listing Details</h2>
+          <dl class="details-value-list">
+            <div><dt>Status</dt><dd><%= ebayDetails?.status || 'UNKNOWN' %></dd></div>
+            <div><dt>Message</dt><dd><%= ebayDetails?.message || '-' %></dd></div>
+            <div><dt>Offer Count</dt><dd><%= ebayDetails?.offerCount ?? 0 %></dd></div>
+            <div><dt>Offer ID</dt><dd><%= ebayDetails?.primaryOffer?.offerId || '-' %></dd></div>
+            <div><dt>Listing ID</dt><dd><%= ebayDetails?.primaryOffer?.listing?.listingId || '-' %></dd></div>
+            <div><dt>Listing Status</dt><dd><%= ebayDetails?.primaryOffer?.listing?.listingStatus || '-' %></dd></div>
+            <div><dt>Marketplace</dt><dd><%= ebayDetails?.primaryOffer?.marketplaceId || '-' %></dd></div>
+            <div><dt>Price</dt><dd><%= ebayDetails?.primaryOffer?.pricingSummary?.price?.value ? ('$' + ebayDetails.primaryOffer.pricingSummary.price.value) : '-' %></dd></div>
+            <div><dt>Quantity</dt><dd><%= ebayDetails?.primaryOffer?.availableQuantity ?? '-' %></dd></div>
+          </dl>
+        </section>
+
+        <section class="details-card" aria-label="Listing images">
+          <h2>Images</h2>
+          <% if (images && images.length) { %>
+            <div class="details-images-grid">
+              <% images.forEach((url, index) => { %>
+                <img src="<%= url %>" alt="Listing image <%= index + 1 %>" loading="lazy" />
+              <% }); %>
+            </div>
+          <% } else { %>
+            <p class="submitted-note">No images were found for this listing.</p>
+          <% } %>
+        </section>
+      </div>
+    </div>
+  </body>
+</html>

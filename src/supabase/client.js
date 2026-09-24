@@ -615,6 +615,152 @@ async function updatePrice(sku, newPrice) {
   return data;
 }
 
+function extractStorageObjectRefFromUrl(rawUrl) {
+  if (typeof rawUrl !== 'string' || !rawUrl.trim()) {
+    return null;
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return null;
+  }
+
+  const pathname = decodeURIComponent(parsed.pathname || '');
+  const patterns = [
+    '/storage/v1/object/public/',
+    '/storage/v1/object/sign/',
+    '/storage/v1/object/authenticated/',
+  ];
+
+  for (const pattern of patterns) {
+    const index = pathname.indexOf(pattern);
+    if (index === -1) {
+      continue;
+    }
+
+    const tail = pathname.slice(index + pattern.length).replace(/^\/+/, '');
+    if (!tail) {
+      continue;
+    }
+
+    const firstSlash = tail.indexOf('/');
+    if (firstSlash === -1) {
+      continue;
+    }
+
+    const bucket = tail.slice(0, firstSlash).trim();
+    const objectPath = tail.slice(firstSlash + 1).trim();
+
+    if (!bucket || !objectPath) {
+      continue;
+    }
+
+    return {
+      bucket,
+      objectPath,
+    };
+  }
+
+  return null;
+}
+
+async function deleteListingAndAssetsBySku(sku) {
+  const client = getSupabase();
+  const normalizedSku = typeof sku === 'string' ? sku.trim() : '';
+
+  if (!normalizedSku) {
+    throw new Error('sku is required.');
+  }
+
+  const { data: imageRows, error: imageLookupError } = await client
+    .from('listing_image')
+    .select('image_url')
+    .eq('sku', normalizedSku);
+
+  if (imageLookupError) {
+    throw imageLookupError;
+  }
+
+  const objectsByBucket = new Map();
+  for (const row of imageRows || []) {
+    const ref = extractStorageObjectRefFromUrl(row?.image_url || '');
+    if (!ref) {
+      continue;
+    }
+
+    if (!objectsByBucket.has(ref.bucket)) {
+      objectsByBucket.set(ref.bucket, new Set());
+    }
+    objectsByBucket.get(ref.bucket).add(ref.objectPath);
+  }
+
+  for (const [bucket, objectPathSet] of objectsByBucket.entries()) {
+    const objectPaths = [...objectPathSet].filter(Boolean);
+    if (!objectPaths.length) {
+      continue;
+    }
+
+    const { error: storageDeleteError } = await client.storage
+      .from(bucket)
+      .remove(objectPaths);
+
+    if (storageDeleteError) {
+      throw storageDeleteError;
+    }
+  }
+
+  const { error: listingImageDeleteError } = await client
+    .from('listing_image')
+    .delete()
+    .eq('sku', normalizedSku);
+
+  if (listingImageDeleteError) {
+    throw listingImageDeleteError;
+  }
+
+  const { error: listingStateDeleteError } = await client
+    .from('listing_state')
+    .delete()
+    .eq('sku', normalizedSku);
+
+  if (listingStateDeleteError) {
+    const stateDeleteMessage = typeof listingStateDeleteError.message === 'string'
+      ? listingStateDeleteError.message.toLowerCase()
+      : '';
+    const isMissingListingStateTable =
+      stateDeleteMessage.includes('does not exist') ||
+      (stateDeleteMessage.includes('relation') && stateDeleteMessage.includes('not found'));
+
+    if (!isMissingListingStateTable) {
+      throw listingStateDeleteError;
+    }
+  }
+
+  const { data: deletedListingRows, error: listingDeleteError } = await client
+    .from('listing')
+    .delete()
+    .eq('sku', normalizedSku)
+    .select('sku');
+
+  if (listingDeleteError) {
+    throw listingDeleteError;
+  }
+
+  if (!Array.isArray(deletedListingRows) || deletedListingRows.length === 0) {
+    const notFoundError = new Error('Listing not found for this SKU.');
+    notFoundError.code = 'PGRST116';
+    throw notFoundError;
+  }
+
+  return {
+    sku: normalizedSku,
+    deletedListing: true,
+    deletedImages: (imageRows || []).length,
+  };
+}
+
 module.exports = {
   getSupabase,
   isSupabaseConfigured,
@@ -634,4 +780,5 @@ module.exports = {
   deleteListingState,
   addLog,
   updatePrice,
+  deleteListingAndAssetsBySku,
 };
