@@ -11,6 +11,9 @@ const { generateSKU } = require('./util/post_new_item');
 const EbayAuthToken = require('ebay-oauth-nodejs-client');
 const { env } = require('process');
 
+const { generateSkuLabelPdfFile } = require('./util/sku_label_pdf');
+
+
 async function main() {
   try {
     // await ebaySetup();
@@ -50,24 +53,27 @@ async function main() {
 
     // const listings = await getActiveListings();
     // console.log('Listings:', listings);
-    console.log("PAYMENT POLICIES:");
-    const paymentPolicies = await getPaymentPolicies();
-    const returnPolicies = await getReturnPolicies();
-    for (const policy of paymentPolicies) {
-        console.log({
-            name: policy.name,
-            id: policy.paymentPolicyId
-        });
-    }
+    // console.log("PAYMENT POLICIES:");
+    // const paymentPolicies = await getPaymentPolicies();
+    // const returnPolicies = await getReturnPolicies();
+    // for (const policy of paymentPolicies) {
+    //     console.log({
+    //         name: policy.name,
+    //         id: policy.paymentPolicyId
+    //     });
+    // }
 
-    console.log("RETURN POLICIES:");
+    // console.log("RETURN POLICIES:");
 
-    for (const policy of returnPolicies) {
-        console.log({
-            name: policy.name,
-            id: policy.returnPolicyId
-        });
-    }
+    // for (const policy of returnPolicies) {
+    //     console.log({
+    //         name: policy.name,
+    //         id: policy.returnPolicyId
+    //     });
+      // }
+      
+
+      await generateSkuLabelPdfFile("021-112", "output.pdf");
 
   } catch (err) {
     console.error('Error fetching eBay policies:', err.message || err);
