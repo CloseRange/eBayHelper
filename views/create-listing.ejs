@@ -354,7 +354,12 @@
       <% } %>
     </div>
 
+    <div id="page-default-price" data-default-listing-price="<%= Number(defaultListingPrice || 10).toFixed(2) %>" hidden></div>
+
     <script>
+      const pageDefaultPriceEl = document.getElementById('page-default-price');
+      const defaultListingPrice = Number(pageDefaultPriceEl?.dataset.defaultListingPrice || '10');
+
       const categorySelect = document.querySelector('.custom-select input[name="category"]')?.closest('.custom-select');
       if (categorySelect) {
         const trigger = categorySelect.querySelector('[data-select-trigger]');
@@ -537,8 +542,6 @@
         }
         return Number(parsed.toFixed(2));
       };
-
-      const defaultListingPrice = Number(<%= Number(defaultListingPrice || 10).toFixed(2) %>);
 
       const getSavedPrice = () => {
         const draft = getListingDraft();

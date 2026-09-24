@@ -533,7 +533,7 @@ app.post('/api/generate-listing-images', requireAuth, async (req, res) => {
 async function applyPriceRateLadder() {
 	try {
 		const rates = (await getPriceRates())
-			.filter((rate) => Number.isFinite(Number(rate.days_to_change)) && Number(rate.days_to_change) >= 0)
+			.filter((rate) => Number.isFinite(Number(rate.days_to_change)) && Number(rate.days_to_change) > 0)
 			.sort((a, b) => Number(a.days_to_change) - Number(b.days_to_change));
 
 		if (!rates.length) {
@@ -561,6 +561,8 @@ async function applyPriceRateLadder() {
 			if (!applicableRate) {
 				continue;
 			}
+
+			console.log(`[price-ladder] ${sku} age=${ageDays} days, selected threshold=${applicableRate.days_to_change} => target $${applicableRate.price}`);
 
 			const targetPrice = Number(applicableRate.price);
 			if (!Number.isFinite(targetPrice) || targetPrice < 0) {

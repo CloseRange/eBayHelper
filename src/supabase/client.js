@@ -586,6 +586,35 @@ async function addLog(caller, message, type, color) {
   return null;
 }
 
+async function updatePrice(sku, newPrice) {
+  const client = getSupabase();
+
+  if (!sku) {
+    throw new Error('sku is required.');
+  }
+
+  if (newPrice === undefined || newPrice === null) {
+    throw new Error('newPrice is required.');
+  }
+
+  const { data, error } = await client
+    .from('listing')
+    .update({
+      price: newPrice
+    })
+    .eq('sku', sku)
+    .select()
+    .single();
+
+  console.log(`[updatePrice] Updated ${sku} to $${newPrice}`);
+  if (error) {
+    console.error('[updatePrice] Supabase error:', error);
+    throw error;
+  }
+
+  return data;
+}
+
 module.exports = {
   getSupabase,
   isSupabaseConfigured,
@@ -604,4 +633,5 @@ module.exports = {
   updateListingState,
   deleteListingState,
   addLog,
+  updatePrice,
 };

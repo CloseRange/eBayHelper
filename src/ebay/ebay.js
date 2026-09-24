@@ -2,6 +2,7 @@ require('dotenv').config();
 
 const { setupEbayPolicies } = require('./ebay_policies');
 const { getEbayApiBase, getEbaySignInUrl } = require('./index');
+const db = require('../supabase/client');
 
 function getEbayJsonHeaders() {
     const token = process.env.EBAY_ACCESS_TOKEN;
@@ -667,6 +668,12 @@ async function updateListingPrice(sku, newPrice) {
     console.log(
         `[eBay] Updated ${normalizedSku} to $${formattedPrice}`
     );
+
+    try {
+        await db.updatePrice(normalizedSku, Number(formattedPrice));
+    } catch (dbError) {
+        console.warn('[eBay] Local listing price update failed after successful eBay update:', dbError.message || dbError);
+    }
 
     return {
         sku: normalizedSku,
