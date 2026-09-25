@@ -1644,6 +1644,16 @@ h1 {
   padding-right: 2px;
 }
 
+.more-drawer-logout-form {
+  margin: 0;
+}
+
+.more-drawer-item-button {
+  width: 100%;
+  font: inherit;
+  cursor: pointer;
+}
+
 .more-drawer-item {
   display: flex;
   align-items: center;

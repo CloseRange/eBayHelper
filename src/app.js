@@ -40,12 +40,6 @@ app.use(
 );
 
 app.use((req, res, next) => {
-	if (!req.session.user) {
-		req.session.user = {
-			id: 'local-dev-user',
-			email: DEFAULT_LOGIN_EMAIL,
-		};
-	}
 	if (typeof req.session.isEbayConnected !== 'boolean') {
 		req.session.isEbayConnected = false;
 	}
@@ -58,7 +52,38 @@ app.use((req, res, next) => {
 	next();
 });
 
-function requireAuth(req, res, next) {
+async function hydrateSupabaseAuthSession(req) {
+	if (!isSupabaseConfigured()) {
+		return;
+	}
+
+	const accessToken = typeof req.session.supabaseAccessToken === 'string'
+		? req.session.supabaseAccessToken
+		: '';
+	const refreshToken = typeof req.session.supabaseRefreshToken === 'string'
+		? req.session.supabaseRefreshToken
+		: '';
+
+	if (!accessToken || !refreshToken) {
+		return;
+	}
+
+	try {
+		await getSupabase().auth.setSession({
+			access_token: accessToken,
+			refresh_token: refreshToken,
+		});
+	} catch (err) {
+		console.warn('[auth] Unable to hydrate Supabase session:', err.message || err);
+	}
+}
+
+async function requireAuth(req, res, next) {
+	if (!req.session.user) {
+		return res.redirect('/login');
+	}
+
+	await hydrateSupabaseAuthSession(req);
 	return next();
 }
 
@@ -172,6 +197,67 @@ async function buildDashboardListingCards(stateFilter) {
 
 app.get('/', (req, res) => {
 	return res.redirect('/dashboard');
+});
+
+app.get('/login', (req, res) => {
+	if (req.session.user) {
+		return res.redirect('/dashboard');
+	}
+
+	return res.render('login', {
+		error: '',
+	});
+});
+
+app.post('/login', async (req, res) => {
+	const passcode = typeof req.body?.password === 'string' ? req.body.password.trim() : '';
+
+	if (!passcode) {
+		return res.status(400).render('login', {
+			error: 'Passcode is required.',
+		});
+	}
+
+	try {
+		if (isSupabaseConfigured()) {
+			const { data, error } = await getSupabase().auth.signInWithPassword({
+				email: DEFAULT_LOGIN_EMAIL,
+				password: passcode,
+			});
+
+			if (error) {
+				throw error;
+			}
+
+			const session = data?.session || null;
+			if (!session?.access_token || !session?.refresh_token) {
+				throw new Error('Supabase did not return an auth session.');
+			}
+
+			req.session.supabaseAccessToken = session.access_token;
+			req.session.supabaseRefreshToken = session.refresh_token;
+			req.session.user = {
+				id: data?.user?.id || 'admin-user',
+				email: DEFAULT_LOGIN_EMAIL,
+			};
+		} else {
+			if (passcode !== DEFAULT_LOGIN_PASSCODE) {
+				throw new Error('Invalid passcode.');
+			}
+
+			req.session.user = {
+				id: 'admin-user',
+				email: DEFAULT_LOGIN_EMAIL,
+			};
+		}
+
+		return res.redirect('/dashboard');
+	} catch (err) {
+		console.warn('[POST /login] Login failed:', err.message || err);
+		return res.status(401).render('login', {
+			error: 'Invalid passcode.',
+		});
+	}
 });
 
 app.get('/settings', requireAuth, async (req, res) => {
@@ -1082,7 +1168,7 @@ app.applyPriceRateLadder = applyPriceRateLadder;
 
 app.post('/logout', (req, res) => {
 	req.session.destroy(() => {
-		res.redirect('/dashboard');
+		res.redirect('/login');
 	});
 });
 

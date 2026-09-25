@@ -14,7 +14,7 @@
           <p class="brand-wordmark">Nine Lives Vintage</p>
         </div>
         <h1 id="login-heading">Welcome back</h1>
-        <p class="subtitle">Sign in to continue managing your boutique resale workflow.</p>
+        <p class="subtitle">Enter your passcode to unlock the admin dashboard.</p>
 
         <% if (error) { %>
           <div class="alert" role="alert"><%= error %></div>
@@ -32,10 +32,6 @@
           />
 
           <button type="submit">Unlock</button>
-        </form>
-
-        <form method="post" action="/auth/ebay/login" class="auth-form auth-form-secondary">
-          <button type="submit" class="secondary-button">Mint Ebay</button>
         </form>
       </section>
     </main>
