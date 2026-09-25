@@ -14,9 +14,16 @@ const debug = require('./debug/debug');
 
 const DEFAULT_LOGIN_EMAIL = 'michael.m.hulbert@gmail.com';
 const DEFAULT_LOGIN_PASSCODE = process.env.LOGIN_PASSCODE || 'passcode';
+
+const isProduction = process.env.NODE_ENV === 'production';
 	
 // Minimal Express app — stripped of routes and middleware.
 const app = express();
+
+if (isProduction) {
+	// Render terminates TLS at the proxy, so trust X-Forwarded-* headers.
+	app.set('trust proxy', 1);
+}
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, '../views'));
@@ -30,10 +37,11 @@ app.use(
 		secret: process.env.SESSION_SECRET || 'dev-session-secret',
 		resave: false,
 		saveUninitialized: false,
+		proxy: isProduction,
 		cookie: {
 			httpOnly: true,
 			sameSite: 'lax',
-			secure: process.env.NODE_ENV === 'production',
+			secure: isProduction,
 			maxAge: 1000 * 60 * 60 * 24 * 7,
 		},
 	})
@@ -251,7 +259,16 @@ app.post('/login', async (req, res) => {
 			};
 		}
 
-		return res.redirect('/dashboard');
+		return req.session.save((saveErr) => {
+			if (saveErr) {
+				console.warn('[POST /login] Failed to persist session:', saveErr.message || saveErr);
+				return res.status(500).render('login', {
+					error: 'Unable to save login session. Please try again.',
+				});
+			}
+
+			return res.redirect('/dashboard');
+		});
 	} catch (err) {
 		console.warn('[POST /login] Login failed:', err.message || err);
 		return res.status(401).render('login', {
