@@ -47,7 +47,10 @@ app.use((req, res, next) => {
 		};
 	}
 	if (typeof req.session.isEbayConnected !== 'boolean') {
-		req.session.isEbayConnected = true;
+		req.session.isEbayConnected = false;
+	}
+	if (req.session.isEbayConnected === true && !req.session.isEbayConnectedVerifiedAt) {
+		req.session.isEbayConnected = false;
 	}
 	res.locals.currentUser = req.session.user || null;
 	res.locals.currentPath = req.path || '/';
@@ -547,6 +550,7 @@ async function checkEbayConnection(req) {
 	try {
 		const listings = await getActiveListings();
 		req.session.isEbayConnected = true;
+		req.session.isEbayConnectedVerifiedAt = Date.now();
 		return {
 			connected: true,
 			message: `Connected to eBay${Array.isArray(listings) ? ` (${listings.length} active listings found)` : ''}.`,
@@ -554,6 +558,7 @@ async function checkEbayConnection(req) {
 		};
 	} catch (err) {
 		req.session.isEbayConnected = false;
+		delete req.session.isEbayConnectedVerifiedAt;
 		return {
 			connected: false,
 			message: err?.message ? `Not connected to eBay API: ${err.message}` : 'Not connected to eBay API',
