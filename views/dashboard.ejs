@@ -6,23 +6,10 @@
     <title>Nine Lives Vintage | Inventory</title>
     <link rel="stylesheet" href="/css/listings.css" />
   </head>
-  <body>
+  <body class="has-mobile-nav">
     <div class="page-shell">
-      <header class="topbar">
-        <div class="brand-lockup">
-          <img src="/res/logo-brand.png" alt="Nine Lives Vintage logo" class="brand-logo-mark" />
-          <p class="brand-wordmark">Nine Lives Vintage</p>
-        </div>
-        <h1>Inventory</h1>
-
-        <div class="header-actions" aria-label="Dashboard actions">
-          <a class="header-action <%= ebayConnectionError ? 'header-action-warning' : '' %>" href="/setupEbay" aria-label="Mint new eBay access token">
-            <img src="/icons/brain.svg" alt="Mint access token" />
-          </a>
-          <a class="header-action" href="/settings" aria-label="Open settings">
-            <img src="/icons/settings.svg" alt="Settings" />
-          </a>
-        </div>
+      <header class="top-logo-bar" aria-label="Site header">
+        <img src="/res/logo-header.png" alt="Nine Lives Vintage" class="top-logo-image" />
       </header>
 
       <form method="get" action="/dashboard" class="search-form" aria-label="Search listings by SKU" id="sku-search-form">
@@ -58,65 +45,36 @@
         <div class="status-banner warning"><%= ebayConnectionError %></div>
       <% } %>
 
-      <% if (pendingListings && pendingListings.length) { %>
-        <section class="pending-section" aria-label="Pending listings">
-          <div class="listing-list pending-list" role="table" aria-label="Pending listings table">
-            <div class="list-row list-row-header pending-row-header" role="row">
-              <span role="columnheader">State</span>
-              <span role="columnheader">SKU</span>
-            </div>
-            <% pendingListings.forEach((listing) => { %>
-              <div class="list-row pending-row" role="row">
-                <span class="state-cell" role="cell">
-                  <span class="state-dot" data-state-color="<%= listing.stateColor || '#B8A4E3' %>"></span>
-                  <%= listing.stateName || 'Unknown' %>
-                </span>
-                <span class="sku-cell" role="cell"><%= listing.sku || '—' %></span>
-              </div>
-            <% }); %>
-          </div>
-        </section>
-      <% } %>
+      <div class="status-banner error" id="dashboard-load-error" hidden></div>
 
-      <% if (!listings || listings.length === 0) { %>
-        <section class="empty-state">
-          <div class="empty-icon-wrap">
-            <img src="/icons/heart-plus.svg" alt="Package icon" />
-          </div>
-          <h2>No listings found</h2>
-          <p>No rows matched your SKU search in the listing table.</p>
-        </section>
-      <% } else { %>
-        <main class="listing-list" aria-label="Listing rows">
-          <div class="list-row list-row-header" role="row">
-            <span role="columnheader">Title</span>
-            <span role="columnheader">Price</span>
-            <span role="columnheader">Age</span>
-            <span role="columnheader">SKU</span>
-          </div>
-          <% listings.forEach((listing) => { %>
-            <article
-              class="list-row data-row"
-              role="button"
-              tabindex="0"
-              aria-label="Open details for <%= listing.title || 'listing' %>"
-              data-sku="<%= listing.sku || '' %>"
-            >
-              <span class="col-title" role="cell"><%= listing.title %></span>
-              <span role="cell"><%= listing.priceDisplay %></span>
-              <span role="cell"><%= listing.ageDisplay %></span>
-              <span class="sku-cell" role="cell"><%= listing.sku %></span>
+      <section class="empty-state" id="dashboard-empty-state" hidden>
+        <div class="empty-icon-wrap">
+          <img src="/icons/heart-plus.svg" alt="Package icon" />
+        </div>
+        <h2>No listings found</h2>
+        <p>No rows matched your SKU search in the listing table.</p>
+      </section>
+
+      <main class="listing-card-grid is-loading" id="listing-card-grid" data-state-filter="<%= typeof stateFilter === 'number' ? stateFilter : 1 %>" aria-label="Listing cards">
+          <% for (let i = 0; i < 6; i += 1) { %>
+            <article class="listing-card listing-card-skeleton" aria-hidden="true">
+              <div class="listing-card-image-wrap listing-card-image-wrap-skeleton">
+                <span class="skeleton-block skeleton-image"></span>
+              </div>
+              <div class="listing-card-body">
+                <span class="skeleton-block skeleton-title"></span>
+                <span class="skeleton-block skeleton-title skeleton-title-short"></span>
+                <div class="listing-card-meta listing-card-meta-skeleton">
+                  <span class="skeleton-block skeleton-pill"></span>
+                  <span class="skeleton-block skeleton-sku"></span>
+                </div>
+              </div>
             </article>
-          <% }); %>
-          <div class="list-row list-row-empty" id="search-empty-row" role="status" aria-live="polite" hidden>
+          <% } %>
+          <div class="listing-card-empty" id="search-empty-row" role="status" aria-live="polite" hidden>
             <span class="empty-row-text">No matching SKU rows.</span>
           </div>
-        </main>
-      <% } %>
-
-      <a class="fab" href="/create-listing" aria-label="Add new listing">
-        <span>+</span>
-      </a>
+      </main>
 
       <section class="listing-modal" id="listing-modal" hidden>
         <div class="listing-modal-backdrop" id="listing-modal-backdrop"></div>
@@ -146,14 +104,17 @@
               <a class="modal-icon-button more-info-button is-disabled" id="more-info-button" href="#" aria-disabled="true" aria-label="More info" title="More info">
                 <img src="/icons/info.svg" alt="" />
               </a>
-              <button type="button" class="modal-icon-button delete-listing-button" id="delete-listing-button" disabled aria-label="Delete listing" title="Delete listing">
-                <img src="/icons/trash-2.svg" alt="" />
-              </button>
             </div>
             <p class="print-sku-status" id="print-sku-status" aria-live="polite"></p>
+            <div class="modal-text-actions">
+              <button type="button" class="modal-text-button finalize-item-button" id="finalize-item-button" disabled>Finalize Item</button>
+              <button type="button" class="modal-text-button modal-text-button-danger" id="delete-listing-button" disabled>Delete Item</button>
+            </div>
           </div>
         </article>
       </section>
+
+      <%- include('partials/mobile-nav', { currentPath }) %>
 
       <script>
         (function () {
@@ -164,8 +125,9 @@
           const scannerVideo = document.getElementById('scanner-video');
           const scannerStatus = document.getElementById('scanner-status');
           const scannerCloseButton = document.getElementById('scanner-close-button');
-          const rows = Array.from(document.querySelectorAll('.data-row'));
-          const emptyRow = document.getElementById('search-empty-row');
+          const grid = document.getElementById('listing-card-grid');
+          const emptyState = document.getElementById('dashboard-empty-state');
+          const loadErrorBanner = document.getElementById('dashboard-load-error');
           const modal = document.getElementById('listing-modal');
           const modalBackdrop = document.getElementById('listing-modal-backdrop');
           const closeModalButton = document.getElementById('listing-modal-close');
@@ -180,14 +142,19 @@
           const imageCounter = document.getElementById('image-counter');
           const printSkuButton = document.getElementById('print-sku-label-button');
           const printSkuStatus = document.getElementById('print-sku-status');
+          const finalizeItemButton = document.getElementById('finalize-item-button');
           const deleteListingButton = document.getElementById('delete-listing-button');
           const moreInfoButton = document.getElementById('more-info-button');
+          const stateFilter = Number(grid && grid.dataset ? grid.dataset.stateFilter : 1) || 1;
 
           document.querySelectorAll('.state-dot[data-state-color]').forEach((dot) => {
             const color = dot.getAttribute('data-state-color') || '#B8A4E3';
             dot.style.background = color;
           });
 
+          let rows = [];
+          let emptyRow = document.getElementById('search-empty-row');
+          let isGridLoading = true;
           let activeImages = [];
           let activeImageIndex = 0;
           let activeSku = '';
@@ -202,6 +169,143 @@
           if (!searchInput) {
             return;
           }
+
+          const escapeHtml = (value) => String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+
+          const refreshRows = () => {
+            rows = grid
+              ? Array.from(grid.querySelectorAll('.listing-card[data-sku]'))
+              : [];
+            emptyRow = document.getElementById('search-empty-row');
+          };
+
+          const createCardMarkup = (listing) => {
+            const title = escapeHtml(listing && listing.title ? listing.title : 'Untitled listing');
+            const sku = escapeHtml(listing && listing.sku ? listing.sku : '—');
+            const priceDisplay = escapeHtml(listing && listing.priceDisplay ? listing.priceDisplay : '—');
+            const imageUrl = listing && listing.imageUrl ? escapeHtml(listing.imageUrl) : '';
+
+            const imageMarkup = imageUrl
+              ? '<div class="listing-card-image-wrap">'
+                + '<span class="listing-card-image-skeleton" aria-hidden="true"></span>'
+                + '<img src="' + imageUrl + '" alt="' + title + '" class="listing-card-image" loading="lazy" />'
+                + '</div>'
+              : '<div class="listing-card-image-wrap is-loaded">'
+                + '<div class="listing-card-image-fallback" aria-hidden="true">'
+                + '<img src="/res/logo-brand.png" alt="" />'
+                + '</div>'
+                + '</div>';
+
+            return ''
+              + '<article class="listing-card data-row" role="button" tabindex="0" aria-label="Open details for ' + title + '" data-sku="' + sku + '">'
+              + imageMarkup
+              + '<div class="listing-card-body">'
+              + '<h3 class="listing-card-title">' + title + '</h3>'
+              + '<div class="listing-card-meta">'
+              + '<span class="listing-card-price">' + priceDisplay + '</span>'
+              + '<span class="listing-card-sku">' + sku + '</span>'
+              + '</div>'
+              + '</div>'
+              + '</article>';
+          };
+
+          const revealLoadedImages = () => {
+            if (!grid) {
+              return;
+            }
+
+            grid.querySelectorAll('.listing-card-image').forEach((image) => {
+              const wrap = image.closest('.listing-card-image-wrap');
+              if (!wrap) {
+                return;
+              }
+
+              const markLoaded = () => {
+                wrap.classList.add('is-loaded');
+              };
+
+              const showFallback = () => {
+                wrap.classList.add('is-loaded');
+                wrap.innerHTML = '<div class="listing-card-image-fallback" aria-hidden="true"><img src="/res/logo-brand.png" alt="" /></div>';
+              };
+
+              if (image.complete && image.naturalWidth > 0) {
+                markLoaded();
+                return;
+              }
+
+              image.addEventListener('load', markLoaded, { once: true });
+              image.addEventListener('error', showFallback, { once: true });
+            });
+          };
+
+          const syncEmptyState = () => {
+            if (!grid) {
+              return;
+            }
+
+            if (isGridLoading) {
+              grid.hidden = false;
+              if (emptyState) {
+                emptyState.hidden = true;
+              }
+              if (emptyRow) {
+                emptyRow.hidden = true;
+              }
+              return;
+            }
+
+            if (!rows.length) {
+              grid.hidden = true;
+              if (emptyState) {
+                emptyState.hidden = false;
+              }
+              if (emptyRow) {
+                emptyRow.hidden = true;
+              }
+              return;
+            }
+
+            grid.hidden = false;
+            if (emptyState) {
+              emptyState.hidden = true;
+            }
+          };
+
+          const renderListings = (listings) => {
+            if (!grid) {
+              return;
+            }
+
+            isGridLoading = false;
+            grid.classList.remove('is-loading');
+            grid.innerHTML = (listings || []).map(createCardMarkup).join('')
+              + '<div class="listing-card-empty" id="search-empty-row" role="status" aria-live="polite" hidden><span class="empty-row-text">No matching SKU rows.</span></div>';
+            refreshRows();
+            revealLoadedImages();
+            syncEmptyState();
+            applyFilter();
+          };
+
+          const setLoadError = (message) => {
+            if (loadErrorBanner) {
+              loadErrorBanner.textContent = message || 'Unable to load listings.';
+              loadErrorBanner.hidden = false;
+            }
+            isGridLoading = false;
+            if (grid) {
+              grid.hidden = true;
+              grid.classList.remove('is-loading');
+            }
+            if (emptyState) {
+              emptyState.hidden = true;
+            }
+          };
 
           const updateImage = () => {
             if (!imageElement || !imageEmpty || !imageCounter || !imagePrev || !imageNext) {
@@ -456,8 +560,11 @@
             if (printSkuButton) {
               printSkuButton.disabled = !activeSku;
             }
+            if (finalizeItemButton) {
+              finalizeItemButton.disabled = !activeSku;
+            }
             if (deleteListingButton) {
-              deleteListingButton.disabled = false;
+              deleteListingButton.disabled = !activeSku;
             }
             if (moreInfoButton) {
               moreInfoButton.href = activeSku ? ('/listing/' + encodeURIComponent(activeSku)) : '#';
@@ -491,8 +598,11 @@
             if (printSkuButton) {
               printSkuButton.disabled = !activeSku;
             }
+            if (finalizeItemButton) {
+              finalizeItemButton.disabled = !activeSku;
+            }
             if (deleteListingButton) {
-              deleteListingButton.disabled = false;
+              deleteListingButton.disabled = !activeSku;
             }
             if (moreInfoButton) {
               moreInfoButton.href = activeSku ? ('/listing/' + encodeURIComponent(activeSku)) : '#';
@@ -602,6 +712,82 @@
             return detailText;
           };
 
+          const removeActiveRowFromGrid = () => {
+            if (!activeRow || !activeRow.parentNode) {
+              return;
+            }
+
+            const index = rows.indexOf(activeRow);
+            if (index >= 0) {
+              rows.splice(index, 1);
+            }
+
+            activeRow.parentNode.removeChild(activeRow);
+            activeRow = null;
+          };
+
+          const finalizeItem = async () => {
+            const skuToFinalize = getCurrentSku();
+            if (!skuToFinalize) {
+              if (printSkuStatus) {
+                printSkuStatus.textContent = 'No SKU found for this listing.';
+              }
+              return;
+            }
+
+            if (printSkuButton) {
+              printSkuButton.disabled = true;
+            }
+            if (finalizeItemButton) {
+              finalizeItemButton.disabled = true;
+            }
+            if (deleteListingButton) {
+              deleteListingButton.disabled = true;
+            }
+            if (printSkuStatus) {
+              printSkuStatus.textContent = 'Finalizing item...';
+            }
+
+            try {
+              const response = await fetch('/api/listing/' + encodeURIComponent(skuToFinalize) + '/finalize', {
+                method: 'POST',
+                headers: {
+                  Accept: 'application/json',
+                },
+              });
+
+              const payload = await response.json().catch(() => ({}));
+              if (!response.ok || !payload || payload.ok !== true) {
+                throw new Error(payload && payload.error ? payload.error : 'Unable to finalize item.');
+              }
+
+              removeActiveRowFromGrid();
+
+              if (printSkuStatus) {
+                printSkuStatus.textContent = 'Item finalized.';
+              }
+              activeSku = '';
+              applyFilter();
+              window.setTimeout(() => {
+                closeModal();
+              }, 550);
+            } catch (error) {
+              if (printSkuStatus) {
+                printSkuStatus.textContent = error && error.message ? error.message : 'Unable to finalize item.';
+              }
+            } finally {
+              if (printSkuButton) {
+                printSkuButton.disabled = !activeSku;
+              }
+              if (finalizeItemButton) {
+                finalizeItemButton.disabled = !activeSku;
+              }
+              if (deleteListingButton) {
+                deleteListingButton.disabled = !activeSku;
+              }
+            }
+          };
+
           const deleteListing = async () => {
             const skuToDelete = getCurrentSku();
             if (!skuToDelete) {
@@ -618,6 +804,9 @@
 
             if (printSkuButton) {
               printSkuButton.disabled = true;
+            }
+            if (finalizeItemButton) {
+              finalizeItemButton.disabled = true;
             }
             if (deleteListingButton) {
               deleteListingButton.disabled = true;
@@ -639,14 +828,7 @@
                 throw new Error(payload && payload.error ? payload.error : 'Unable to delete listing.');
               }
 
-              if (activeRow && activeRow.parentNode) {
-                const index = rows.indexOf(activeRow);
-                if (index >= 0) {
-                  rows.splice(index, 1);
-                }
-                activeRow.parentNode.removeChild(activeRow);
-                activeRow = null;
-              }
+              removeActiveRowFromGrid();
 
               if (printSkuStatus) {
                 printSkuStatus.textContent = 'Listing deleted.';
@@ -665,6 +847,9 @@
             } finally {
               if (printSkuButton) {
                 printSkuButton.disabled = !activeSku;
+              }
+              if (finalizeItemButton) {
+                finalizeItemButton.disabled = !activeSku;
               }
               if (deleteListingButton) {
                 deleteListingButton.disabled = !activeSku;
@@ -698,6 +883,15 @@
           };
 
           const applyFilter = () => {
+            if (!grid) {
+              return;
+            }
+
+            syncEmptyState();
+            if (isGridLoading || !rows.length) {
+              return;
+            }
+
             const query = searchInput.value.trim().toLowerCase();
             let visibleCount = 0;
 
@@ -712,6 +906,35 @@
 
             if (emptyRow) {
               emptyRow.hidden = visibleCount > 0;
+            }
+          };
+
+          const fetchListings = async () => {
+            if (!grid) {
+              return;
+            }
+
+            try {
+              const response = await fetch('/api/dashboard-listings?state=' + encodeURIComponent(stateFilter), {
+                method: 'GET',
+                headers: {
+                  Accept: 'application/json',
+                },
+              });
+
+              const payload = await response.json().catch(() => ({}));
+              if (!response.ok || !payload || payload.ok !== true) {
+                throw new Error(payload && payload.error ? payload.error : 'Unable to load listings.');
+              }
+
+              if (loadErrorBanner) {
+                loadErrorBanner.hidden = true;
+                loadErrorBanner.textContent = '';
+              }
+
+              renderListings(Array.isArray(payload.listings) ? payload.listings : []);
+            } catch (error) {
+              setLoadError(error && error.message ? error.message : 'Unable to load listings.');
             }
           };
 
@@ -735,22 +958,40 @@
             });
           }
 
-          rows.forEach((row) => {
-            row.addEventListener('click', () => {
+          if (grid) {
+            grid.addEventListener('click', (event) => {
+              const row = event.target.closest('.listing-card[data-sku]');
+              if (!row || !grid.contains(row)) {
+                return;
+              }
+
               const sku = row.getAttribute('data-sku') || '';
+              if (!sku) {
+                return;
+              }
+
               activeRow = row;
-              loadDetails(sku);
+              void loadDetails(sku);
             });
 
-            row.addEventListener('keydown', (event) => {
+            grid.addEventListener('keydown', (event) => {
+              const row = event.target.closest('.listing-card[data-sku]');
+              if (!row || !grid.contains(row)) {
+                return;
+              }
+
               if (event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault();
                 const sku = row.getAttribute('data-sku') || '';
+                if (!sku) {
+                  return;
+                }
+
                 activeRow = row;
-                loadDetails(sku);
+                void loadDetails(sku);
               }
             });
-          });
+          }
 
           if (imagePrev) {
             imagePrev.addEventListener('click', () => {
@@ -784,6 +1025,10 @@
             printSkuButton.addEventListener('click', printSkuLabel);
           }
 
+          if (finalizeItemButton) {
+            finalizeItemButton.addEventListener('click', finalizeItem);
+          }
+
           if (deleteListingButton) {
             deleteListingButton.addEventListener('click', deleteListing);
           }
@@ -799,7 +1044,8 @@
             }
           });
 
-          applyFilter();
+          syncEmptyState();
+          void fetchListings();
         })();
       </script>
     </div>

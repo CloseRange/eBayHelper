@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nine Lives Vintage | eBay</title>
+    <link rel="stylesheet" href="/css/listings.css" />
+  </head>
+  <body class="has-mobile-nav ebay-page">
+    <div class="page-shell narrow-shell">
+      <header class="ebay-page-header" aria-label="eBay connection header">
+        <div class="ebay-header-lockup">
+          <img src="/res/ebay-icon.svg" alt="eBay" class="ebay-header-logo" />
+          <div class="ebay-header-copy">
+            <h1>eBay</h1>
+            <p class="ebay-header-status <%= isEbayConnected ? 'is-connected' : 'is-disconnected' %>"><%= isEbayConnected ? 'Connected to eBay' : 'Not connected to eBay' %></p>
+          </div>
+        </div>
+        <span class="ebay-header-pill <%= isEbayConnected ? 'is-connected' : 'is-disconnected' %>"><%= isEbayConnected ? 'Connected' : 'Disconnected' %></span>
+      </header>
+
+      <% if (statusBanner) { %>
+        <div class="status-banner <%= isEbayConnected ? 'success' : 'warning' %>"><%= statusBanner %></div>
+      <% } %>
+
+      <main class="wizard-card ebay-page-card">
+        <div class="section-heading">
+          <p class="eyebrow muted">Account</p>
+          <h2>eBay integration</h2>
+          <p class="selected-category"><%= isEbayConnected ? 'Connected and ready.' : 'Not connected to eBay yet.' %></p>
+        </div>
+
+        <div class="ebay-action-row">
+          <form method="post" action="/ebay/test">
+            <button type="submit" class="secondary-btn ebay-test-btn">Test Connection</button>
+          </form>
+          <form method="post" action="/ebay/sync">
+            <button type="submit" class="primary-btn ebay-sync-btn">Sync Now</button>
+          </form>
+        </div>
+      </main>
+
+      <%- include('partials/mobile-nav', { currentPath }) %>
+    </div>
+  </body>
+</html>

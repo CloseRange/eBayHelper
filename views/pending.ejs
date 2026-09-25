@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nine Lives Vintage | Pending</title>
+    <link rel="stylesheet" href="/css/listings.css" />
+  </head>
+  <body class="has-mobile-nav">
+    <div class="page-shell">
+      <header class="top-logo-bar" aria-label="Site header">
+        <img src="/res/logo-header.png" alt="Nine Lives Vintage" class="top-logo-image" />
+      </header>
+
+      <% if (error) { %>
+        <div class="status-banner error"><%= error %></div>
+      <% } %>
+
+      <% if (!pendingListings || pendingListings.length === 0) { %>
+        <section class="empty-state">
+          <div class="empty-icon-wrap">
+            <img src="/icons/hourglass.svg" alt="Pending items" />
+          </div>
+          <h2>No pending items</h2>
+          <p>No rows were found in the pending item table.</p>
+        </section>
+      <% } else { %>
+        <section class="pending-section" aria-label="Pending listings">
+          <div class="listing-list pending-list" role="table" aria-label="Pending listings table">
+            <div class="list-row list-row-header pending-row-header" role="row">
+              <span role="columnheader">State</span>
+              <span role="columnheader">SKU</span>
+            </div>
+            <% pendingListings.forEach((listing) => { %>
+              <div class="list-row pending-row" role="row">
+                <span class="state-cell" role="cell">
+                  <span class="state-dot" data-state-color="<%= listing.stateColor || '#B8A4E3' %>"></span>
+                  <%= listing.stateName || 'Unknown' %>
+                </span>
+                <span class="sku-cell" role="cell"><%= listing.sku || '—' %></span>
+              </div>
+            <% }); %>
+          </div>
+        </section>
+      <% } %>
+
+      <%- include('partials/mobile-nav', { currentPath }) %>
+
+      <script>
+        document.querySelectorAll('.state-dot[data-state-color]').forEach((dot) => {
+          const color = dot.getAttribute('data-state-color') || '#B8A4E3';
+          dot.style.background = color;
+        });
+      </script>
+    </div>
+  </body>
+</html>

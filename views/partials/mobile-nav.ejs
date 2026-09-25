@@ -1,0 +1,172 @@
+<%
+  const navPath = currentPath || '/';
+  const isListings = navPath === '/dashboard' || navPath.startsWith('/listing/');
+  const isOrders = navPath === '/orders';
+  const isCreate = navPath === '/create-listing' || navPath === '/listing/submitted';
+  const isAnalytics = navPath === '/analytics';
+  const isPending = navPath === '/pending';
+  const isMore = navPath === '/settings' || navPath === '/pending' || navPath === '/ebay';
+  const canCreateListing = isEbayConnected !== false;
+%>
+
+<nav class="mobile-bottom-nav" aria-label="Primary">
+  <a class="mobile-nav-item <%= isListings ? 'is-active' : '' %>" href="/dashboard" aria-label="Listings">
+    <img src="/icons/shirt.svg" alt="" />
+    <span>Listings</span>
+  </a>
+
+  <a class="mobile-nav-item <%= isOrders ? 'is-active' : '' %>" href="/orders" aria-label="Orders">
+    <img src="/icons/layout-arrow-right.svg" alt="" />
+    <span>Orders</span>
+  </a>
+
+  <a
+    class="mobile-nav-item mobile-nav-item-center <%= isCreate ? 'is-active' : '' %> <%= !canCreateListing ? 'is-disabled' : '' %>"
+    href="<%= canCreateListing ? '/create-listing' : '#' %>"
+    aria-label="Create listing"
+    <%= !canCreateListing ? 'aria-disabled="true" tabindex="-1"' : '' %>
+  >
+    <span class="center-icon-wrap">
+      <img src="/icons/plus.svg" alt="" />
+    </span>
+  </a>
+
+  <a class="mobile-nav-item <%= isAnalytics ? 'is-active' : '' %>" href="/analytics" aria-label="Analyitcs">
+    <img src="/icons/chart-line.svg" alt="" />
+    <span>Analyitcs</span>
+  </a>
+
+  <button type="button" class="mobile-nav-item mobile-nav-item-button <%= isMore ? 'is-active' : '' %>" data-more-toggle aria-label="Open more menu">
+    <img src="/icons/ellipis.svg" alt="" />
+    <span>More</span>
+  </button>
+</nav>
+
+<div class="more-drawer" data-more-drawer hidden>
+  <div class="more-drawer-backdrop" data-more-backdrop></div>
+  <aside class="more-drawer-panel" role="dialog" aria-modal="true" aria-label="More menu">
+    <div class="more-drawer-topbar">
+      <img src="/res/logo-brand.png" alt="Nine Lives Vintage" class="more-drawer-logo" />
+      <button type="button" class="more-drawer-close" data-more-close aria-label="Close more menu">×</button>
+    </div>
+
+    <nav class="more-drawer-list" aria-label="More navigation">
+      <a class="more-drawer-item <%= isListings ? 'is-active' : '' %>" href="/dashboard">
+        <span class="more-drawer-leading">
+          <span class="more-drawer-icon"><img src="/icons/shirt.svg" alt="" /></span>
+          <span>Listings</span>
+        </span>
+      </a>
+
+      <a class="more-drawer-item <%= isOrders ? 'is-active' : '' %>" href="/orders">
+        <span class="more-drawer-leading">
+          <span class="more-drawer-icon"><img src="/icons/layout-arrow-right.svg" alt="" /></span>
+          <span>Orders</span>
+        </span>
+      </a>
+
+      <a class="more-drawer-item <%= isCreate ? 'is-active' : '' %> <%= !canCreateListing ? 'is-disabled' : '' %>" href="<%= canCreateListing ? '/create-listing' : '#' %>" <%= !canCreateListing ? 'aria-disabled="true" tabindex="-1"' : '' %>>
+        <span class="more-drawer-leading">
+          <span class="more-drawer-icon"><img src="/icons/plus.svg" alt="" /></span>
+          <span>Add Item</span>
+        </span>
+      </a>
+
+      <a class="more-drawer-item <%= isAnalytics ? 'is-active' : '' %>" href="/analytics">
+        <span class="more-drawer-leading">
+          <span class="more-drawer-icon"><img src="/icons/chart-line.svg" alt="" /></span>
+          <span>Analyitcs</span>
+        </span>
+      </a>
+
+      <a class="more-drawer-item <%= isPending ? 'is-active' : '' %>" href="/pending">
+        <span class="more-drawer-leading">
+          <span class="more-drawer-icon"><img src="/icons/hourglass.svg" alt="" /></span>
+          <span>Pending</span>
+        </span>
+      </a>
+
+      <a class="more-drawer-item" href="/dashboard?state=4">
+        <span class="more-drawer-leading">
+          <span class="more-drawer-icon"><img src="/icons/vault.svg" alt="" /></span>
+          <span>Archived</span>
+        </span>
+      </a>
+
+      <a class="more-drawer-item <%= navPath === '/ebay' ? 'is-active' : '' %>" href="/ebay">
+        <span class="more-drawer-leading">
+          <span class="more-drawer-icon"><img src="/icons/store.svg" alt="" /></span>
+          <span>eBay</span>
+        </span>
+      </a>
+
+      <div class="more-drawer-item is-disabled" aria-disabled="true">
+        <span class="more-drawer-leading">
+          <span class="more-drawer-icon"><img src="/icons/user.svg" alt="" /></span>
+          <span>Customers</span>
+        </span>
+      </div>
+
+      <div class="more-drawer-item is-disabled" aria-disabled="true">
+        <span class="more-drawer-leading">
+          <span class="more-drawer-icon"><img src="/icons/mail.svg" alt="" /></span>
+          <span>Messages</span>
+        </span>
+      </div>
+
+      <a class="more-drawer-item <%= navPath === '/settings' ? 'is-active' : '' %>" href="/settings">
+        <span class="more-drawer-leading">
+          <span class="more-drawer-icon"><img src="/icons/settings.svg" alt="" /></span>
+          <span>Settings</span>
+        </span>
+      </a>
+    </nav>
+  </aside>
+</div>
+
+<script>
+  (function () {
+    const drawer = document.querySelector('[data-more-drawer]');
+    const toggle = document.querySelector('[data-more-toggle]');
+    const closeButton = document.querySelector('[data-more-close]');
+    const backdrop = document.querySelector('[data-more-backdrop]');
+
+    if (!drawer || !toggle || !closeButton || !backdrop) {
+      return;
+    }
+
+    const openDrawer = () => {
+      drawer.hidden = false;
+      requestAnimationFrame(() => {
+        drawer.classList.add('is-open');
+        document.body.classList.add('more-drawer-open');
+      });
+    };
+
+    const closeDrawer = () => {
+      drawer.classList.remove('is-open');
+      document.body.classList.remove('more-drawer-open');
+      window.setTimeout(() => {
+        if (!drawer.classList.contains('is-open')) {
+          drawer.hidden = true;
+        }
+      }, 220);
+    };
+
+    toggle.addEventListener('click', openDrawer);
+    closeButton.addEventListener('click', closeDrawer);
+    backdrop.addEventListener('click', closeDrawer);
+
+    drawer.querySelectorAll('a').forEach((link) => {
+      link.addEventListener('click', () => {
+        closeDrawer();
+      });
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !drawer.hidden) {
+        closeDrawer();
+      }
+    });
+  })();
+</script>

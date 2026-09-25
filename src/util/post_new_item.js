@@ -69,7 +69,7 @@ function formatAspects(aspects) {
 }
 
 
-async function generateListing(frontImage64, backImage64, tagImage64, sku, info) {
+async function generateListing(frontImage64, backImage64, modelImage64A, modelImage64B, tagImage64, sku, info) {
     let result = null;
 
     try {
@@ -90,35 +90,58 @@ async function generateListing(frontImage64, backImage64, tagImage64, sku, info)
             throw new Error('Front and back images are required.');
         }
 
-        let genData = null;
-        try {
-            genData = await generateImageModel1(info.category, info.features, frontImage64, backImage64, sku);
-        } catch (err) {
-            console.error('Error generating images with OpenAI:', err);
-            throw new Error('Failed to generate images. Please try again later.');
-        }
+        const hasProvidedModelImages = Boolean(
+            modelImage64A && String(modelImage64A).trim() &&
+            modelImage64B && String(modelImage64B).trim()
+        );
 
-        let modalAUrl = null;
-        let modalBUrl = null;
-        if (genData?.images) {
+        let modelImage1Url = null;
+        let modelImage2Url = null;
+        if (hasProvidedModelImages) {
             try {
-                if (genData.images.photoA) {
-                    modalAUrl = await db.uploadBase64ImageToBucket({
-                        bucketName: 'listing-photos',
-                        path: `${info.category}/${sku}-modalA-${id}.jpg`,
-                        base64Data: genData.images.photoA,
-                    });
-                }
-                if (genData.images.photoB) {
-                    modalBUrl = await db.uploadBase64ImageToBucket({
-                        bucketName: 'listing-photos',
-                        path: `${info.category}/${sku}-modalB-${id}.jpg`,
-                        base64Data: genData.images.photoB,
-                    });
-                }
+                modelImage1Url = await db.uploadBase64ImageToBucket({
+                    bucketName: 'listing-photos',
+                    path: `${info.category}/${sku}-model1-${id}.jpg`,
+                    base64Data: modelImage64A,
+                });
+                modelImage2Url = await db.uploadBase64ImageToBucket({
+                    bucketName: 'listing-photos',
+                    path: `${info.category}/${sku}-model2-${id}.jpg`,
+                    base64Data: modelImage64B,
+                });
             } catch (err) {
-                console.error('Error uploading generated images to Supabase:', err);
-                throw new Error('Failed to upload generated images. Please try again later.');
+                console.error('Error uploading provided model images to Supabase:', err);
+                throw new Error('Failed to upload provided model images. Please try again later.');
+            }
+        } else {
+            let genData = null;
+            try {
+                genData = await generateImageModel1(info.category, info.features, frontImage64, backImage64, sku);
+            } catch (err) {
+                console.error('Error generating images with OpenAI:', err);
+                throw new Error('Failed to generate images. Please try again later.');
+            }
+
+            if (genData?.images) {
+                try {
+                    if (genData.images.photoA) {
+                        modelImage1Url = await db.uploadBase64ImageToBucket({
+                            bucketName: 'listing-photos',
+                            path: `${info.category}/${sku}-model1-${id}.jpg`,
+                            base64Data: genData.images.photoA,
+                        });
+                    }
+                    if (genData.images.photoB) {
+                        modelImage2Url = await db.uploadBase64ImageToBucket({
+                            bucketName: 'listing-photos',
+                            path: `${info.category}/${sku}-model2-${id}.jpg`,
+                            base64Data: genData.images.photoB,
+                        });
+                    }
+                } catch (err) {
+                    console.error('Error uploading generated images to Supabase:', err);
+                    throw new Error('Failed to upload generated images. Please try again later.');
+                }
             }
         }
 
@@ -178,12 +201,12 @@ async function generateListing(frontImage64, backImage64, tagImage64, sku, info)
             aspects: info.features || {}
         });
 
-        const listingImages = [modalAUrl, modalBUrl, frontPublicUrl, backPublicUrl, tagPublicUrl]
+        const listingImages = [modelImage1Url, frontPublicUrl, backPublicUrl, modelImage2Url, tagPublicUrl]
             .filter((url) => typeof url === 'string' && url.trim() !== '');
 
         await db.addListingImages(sku, listingImages);
 
-        const validImageUrls = [modalAUrl, modalBUrl, frontPublicUrl, backPublicUrl, tagPublicUrl]
+        const validImageUrls = [modelImage1Url, frontPublicUrl, backPublicUrl, modelImage2Url, tagPublicUrl]
             .filter((url) => typeof url === 'string' && url.trim() !== '');
 
         if (!validImageUrls.length) {
@@ -207,8 +230,8 @@ async function generateListing(frontImage64, backImage64, tagImage64, sku, info)
 
         result = {
             sku,
-            modalAUrl,
-            modalBUrl,
+            modelImage1Url,
+            modelImage2Url,
             frontPublicUrl,
             backPublicUrl,
             tagPublicUrl,

@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nine Lives Vintage | Analytics</title>
+    <link rel="stylesheet" href="/css/listings.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  </head>
+  <body class="has-mobile-nav analytics-page">
+    <div class="page-shell analytics-shell">
+      <header class="top-logo-bar" aria-label="Site header">
+        <img src="/res/logo-header.png" alt="Nine Lives Vintage" class="top-logo-image" />
+      </header>
+
+      <main class="analytics-stack">
+        <section class="wizard-card analytics-hero-card">
+          <div class="section-heading analytics-heading">
+            <div>
+              <p class="eyebrow muted">Sales Analytics</p>
+              <h2>Performance snapshot</h2>
+              <p class="selected-category">Track revenue, selling cadence, and how long inventory takes to move.</p>
+            </div>
+          </div>
+
+          <% if (error) { %>
+            <div class="status-banner error"><%= error %></div>
+          <% } %>
+
+          <% if (!hasSales) { %>
+            <section class="empty-state analytics-empty-state">
+              <div class="empty-icon-wrap">
+                <img src="/icons/chart-line.svg" alt="Analytics" />
+              </div>
+              <h2>No sales yet</h2>
+              <p>Finalize items from the dashboard to start building analytics from the sale details table.</p>
+            </section>
+          <% } else { %>
+            <section class="analytics-kpis" aria-label="Analytics summary">
+              <article class="analytics-kpi-card analytics-kpi-card-primary">
+                <span class="analytics-kpi-label">Total revenue</span>
+                <strong class="analytics-kpi-value"><%= metrics.totalRevenueLabel %></strong>
+                <span class="analytics-kpi-note">Lifetime recorded sales</span>
+              </article>
+              <article class="analytics-kpi-card">
+                <span class="analytics-kpi-label">Past 7 days</span>
+                <strong class="analytics-kpi-value"><%= metrics.weekRevenueLabel %></strong>
+                <span class="analytics-kpi-note">Revenue in the last week</span>
+              </article>
+              <article class="analytics-kpi-card">
+                <span class="analytics-kpi-label">Past 30 days</span>
+                <strong class="analytics-kpi-value"><%= metrics.monthRevenueLabel %></strong>
+                <span class="analytics-kpi-note">Revenue in the last month</span>
+              </article>
+              <article class="analytics-kpi-card">
+                <span class="analytics-kpi-label">Items sold</span>
+                <strong class="analytics-kpi-value"><%= metrics.totalSalesLabel %></strong>
+                <span class="analytics-kpi-note">Completed sales recorded</span>
+              </article>
+              <article class="analytics-kpi-card">
+                <span class="analytics-kpi-label">Average sale price</span>
+                <strong class="analytics-kpi-value"><%= metrics.avgSaleLabel %></strong>
+                <span class="analytics-kpi-note">Average revenue per sale</span>
+              </article>
+              <article class="analytics-kpi-card">
+                <span class="analytics-kpi-label">Average days alive</span>
+                <strong class="analytics-kpi-value"><%= metrics.avgDaysAliveLabel %> days</strong>
+                <span class="analytics-kpi-note">Typical time to sell</span>
+              </article>
+            </section>
+
+            <section class="analytics-grid" aria-label="Analytics charts and tables">
+              <article class="wizard-card analytics-panel analytics-panel-wide">
+                <div class="analytics-panel-header">
+                  <div>
+                    <p class="eyebrow muted">Trend</p>
+                    <h3>Sales over the last 30 days</h3>
+                  </div>
+                </div>
+                <div class="analytics-chart-wrap">
+                  <canvas id="sales-trend-chart" aria-label="Sales trend chart"></canvas>
+                </div>
+              </article>
+
+              <article class="wizard-card analytics-panel">
+                <div class="analytics-panel-header">
+                  <div>
+                    <p class="eyebrow muted">Weekday performance</p>
+                    <h3>Revenue by day of week</h3>
+                  </div>
+                </div>
+                <div class="analytics-chart-wrap analytics-chart-wrap-compact">
+                  <canvas id="weekday-chart" aria-label="Weekday revenue chart"></canvas>
+                </div>
+              </article>
+
+              <article class="wizard-card analytics-panel">
+                <div class="analytics-panel-header">
+                  <div>
+                    <p class="eyebrow muted">Sell-through speed</p>
+                    <h3>How long items sit before sale</h3>
+                  </div>
+                </div>
+                <div class="analytics-chart-wrap analytics-chart-wrap-compact">
+                  <canvas id="age-chart" aria-label="Item age distribution chart"></canvas>
+                </div>
+              </article>
+
+              <article class="wizard-card analytics-panel">
+                <div class="analytics-panel-header">
+                  <div>
+                    <p class="eyebrow muted">Weekday table</p>
+                    <h3>Revenue and sell count</h3>
+                  </div>
+                </div>
+                <div class="analytics-table" role="table" aria-label="Revenue by weekday table">
+                  <div class="analytics-table-row analytics-table-row-header" role="row">
+                    <span role="columnheader">Day</span>
+                    <span role="columnheader">Sales</span>
+                    <span role="columnheader">Revenue</span>
+                  </div>
+                  <% weekdayTable.forEach((row) => { %>
+                    <div class="analytics-table-row" role="row">
+                      <span role="cell"><%= row.name %></span>
+                      <span role="cell"><%= row.countLabel %></span>
+                      <span role="cell"><%= row.revenueLabel %></span>
+                    </div>
+                  <% }); %>
+                </div>
+              </article>
+
+              <article class="wizard-card analytics-panel analytics-panel-wide">
+                <div class="analytics-panel-header">
+                  <div>
+                    <p class="eyebrow muted">Recent sales</p>
+                    <h3>Latest finalized items</h3>
+                  </div>
+                </div>
+                <div class="analytics-table" role="table" aria-label="Recent sales table">
+                  <div class="analytics-table-row analytics-table-row-header analytics-table-row-sales" role="row">
+                    <span role="columnheader">SKU</span>
+                    <span role="columnheader">Sold</span>
+                    <span role="columnheader">Price</span>
+                    <span role="columnheader">Days alive</span>
+                  </div>
+                  <% recentSales.forEach((sale) => { %>
+                    <div class="analytics-table-row analytics-table-row-sales" role="row">
+                      <span role="cell"><%= sale.sku %></span>
+                      <span role="cell"><%= sale.dateLabel %></span>
+                      <span role="cell"><%= sale.priceLabel %></span>
+                      <span role="cell"><%= sale.daysAliveLabel %></span>
+                    </div>
+                  <% }); %>
+                </div>
+              </article>
+            </section>
+          <% } %>
+        </section>
+      </main>
+
+      <%- include('partials/mobile-nav', { currentPath }) %>
+    </div>
+
+    <% if (hasSales) { %>
+      <script>
+        (function () {
+          const chartData = <%- JSON.stringify(chartData) %>;
+          const baseGridColor = 'rgba(50, 43, 59, 0.08)';
+          const baseTickColor = '#5A4F68';
+
+          const buildCurrencyTick = (value) => {
+            return new Intl.NumberFormat('en-US', {
+              style: 'currency',
+              currency: 'USD',
+              maximumFractionDigits: 0,
+            }).format(value || 0);
+          };
+
+          const salesTrendCanvas = document.getElementById('sales-trend-chart');
+          if (salesTrendCanvas) {
+            new Chart(salesTrendCanvas, {
+              type: 'line',
+              data: {
+                labels: chartData.salesTrend.labels,
+                datasets: [
+                  {
+                    label: 'Revenue',
+                    data: chartData.salesTrend.revenue,
+                    borderColor: '#B8A4E3',
+                    backgroundColor: 'rgba(184, 164, 227, 0.2)',
+                    fill: true,
+                    tension: 0.35,
+                    pointRadius: 3,
+                    pointHoverRadius: 4,
+                    yAxisID: 'y',
+                  },
+                  {
+                    label: 'Sales count',
+                    data: chartData.salesTrend.counts,
+                    type: 'bar',
+                    backgroundColor: 'rgba(243, 169, 156, 0.5)',
+                    borderRadius: 8,
+                    yAxisID: 'yCount',
+                  },
+                ],
+              },
+              options: {
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: {
+                    labels: {
+                      color: baseTickColor,
+                    },
+                  },
+                },
+                scales: {
+                  x: {
+                    ticks: { color: baseTickColor },
+                    grid: { color: 'transparent' },
+                  },
+                  y: {
+                    ticks: {
+                      color: baseTickColor,
+                      callback: buildCurrencyTick,
+                    },
+                    grid: { color: baseGridColor },
+                  },
+                  yCount: {
+                    position: 'right',
+                    ticks: { color: baseTickColor, precision: 0 },
+                    grid: { drawOnChartArea: false },
+                  },
+                },
+              },
+            });
+          }
+
+          const weekdayCanvas = document.getElementById('weekday-chart');
+          if (weekdayCanvas) {
+            new Chart(weekdayCanvas, {
+              type: 'bar',
+              data: {
+                labels: chartData.weekdayRevenue.labels,
+                datasets: [
+                  {
+                    label: 'Revenue',
+                    data: chartData.weekdayRevenue.values,
+                    backgroundColor: ['#B8A4E3', '#C5B3EA', '#D3C2F0', '#F3A99C', '#F5B8AD', '#B9DCCB', '#97C7B2'],
+                    borderRadius: 10,
+                  },
+                ],
+              },
+              options: {
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: { display: false },
+                },
+                scales: {
+                  x: {
+                    ticks: { color: baseTickColor },
+                    grid: { display: false },
+                  },
+                  y: {
+                    ticks: {
+                      color: baseTickColor,
+                      callback: buildCurrencyTick,
+                    },
+                    grid: { color: baseGridColor },
+                  },
+                },
+              },
+            });
+          }
+
+          const ageCanvas = document.getElementById('age-chart');
+          if (ageCanvas) {
+            new Chart(ageCanvas, {
+              type: 'bar',
+              data: {
+                labels: chartData.ageBuckets.labels,
+                datasets: [
+                  {
+                    label: 'Items sold',
+                    data: chartData.ageBuckets.values,
+                    backgroundColor: 'rgba(91, 170, 126, 0.68)',
+                    borderRadius: 10,
+                  },
+                ],
+              },
+              options: {
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: { display: false },
+                },
+                scales: {
+                  x: {
+                    ticks: { color: baseTickColor },
+                    grid: { display: false },
+                  },
+                  y: {
+                    ticks: { color: baseTickColor, precision: 0 },
+                    grid: { color: baseGridColor },
+                  },
+                },
+              },
+            });
+          }
+        })();
+      </script>
+    <% } %>
+  </body>
+</html>

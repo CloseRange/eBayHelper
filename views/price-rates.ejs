@@ -6,20 +6,10 @@
     <title>Nine Lives Vintage | Price Rates</title>
     <link rel="stylesheet" href="/css/listings.css" />
   </head>
-  <body>
+  <body class="has-mobile-nav">
     <div class="page-shell narrow-shell">
-      <header class="wizard-header">
-        <div class="wizard-title-block">
-          <div class="brand-lockup">
-            <img src="/res/logo-brand.png" alt="Nine Lives Vintage logo" class="brand-logo-mark" />
-            <p class="brand-wordmark">Nine Lives Vintage</p>
-          </div>
-          <h1>Price rates</h1>
-        </div>
-
-        <a class="back-button" href="/settings" aria-label="Back to settings">
-          <img src="/icons/arrow-big-left.svg" alt="Back to settings" />
-        </a>
+      <header class="top-logo-bar" aria-label="Site header">
+        <img src="/res/logo-header.png" alt="Nine Lives Vintage" class="top-logo-image" />
       </header>
 
       <main class="wizard-card">
@@ -121,6 +111,8 @@
           </div>
         </form>
       </main>
+
+      <%- include('partials/mobile-nav', { currentPath }) %>
     </div>
 
     <script>

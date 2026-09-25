@@ -8,15 +8,8 @@
   </head>
   <body>
     <div class="page-shell narrow-shell">
-      <header class="wizard-header">
-        <div class="wizard-title-block">
-          <div class="brand-lockup">
-            <img src="/res/logo-brand.png" alt="Nine Lives Vintage logo" class="brand-logo-mark" />
-            <p class="brand-wordmark">Nine Lives Vintage</p>
-          </div>
-          <h1>Create listing</h1>
-        </div>
-        <a class="close-button" href="/dashboard" aria-label="Cancel and return to listings">×</a>
+      <header class="top-logo-bar" aria-label="Site header">
+        <img src="/res/logo-header.png" alt="Nine Lives Vintage" class="top-logo-image" />
       </header>
 
       <nav class="wizard-steps" aria-label="Listing steps">
@@ -78,11 +71,8 @@
         </section>
 
         <div class="wizard-actions">
-          <button type="button" class="secondary-btn nav-btn" disabled>
-            <span class="nav-btn-icon nav-btn-icon-back" aria-hidden="true">
-              <img src="/icons/arrow-big-left.svg" alt="Back" />
-            </span>
-            <span>Back</span>
+          <button type="button" class="secondary-btn nav-btn" id="category-close">
+            <span>Close</span>
           </button>
           <button type="button" id="category-next" class="primary-btn nav-btn" disabled>
             <span>Next</span>
@@ -97,10 +87,11 @@
             <p class="eyebrow muted">Step 3</p>
             <h2>Photos</h2>
             <p class="selected-category"><strong>Category:</strong> <%= selectedCategory %></p>
+            <p class="photo-step-note">Front and back are required. Model 1 and Model 2 are optional together. If both model photos are provided, AI model generation is skipped. Tag is optional.</p>
           </div>
 
           <div class="photo-grid">
-            <div class="photo-card" data-photo-card>
+            <div class="photo-card" data-photo-card data-photo-key="front">
               <div class="photo-header">
                 <label>Front</label>
               </div>
@@ -120,7 +111,7 @@
               </div>
             </div>
 
-            <div class="photo-card" data-photo-card>
+            <div class="photo-card" data-photo-card data-photo-key="back">
               <div class="photo-header">
                 <label>Back</label>
               </div>
@@ -140,9 +131,52 @@
               </div>
             </div>
 
-            <div class="photo-card" data-photo-card>
+            <div class="photo-card" data-photo-card data-photo-key="model1">
+              <div class="photo-header">
+                <label>Model 1</label>
+                <span class="photo-optional-badge">Optional</span>
+              </div>
+              <div class="upload-box" data-upload-box>
+                <button type="button" class="upload-trigger" aria-label="Add model 1 photo">
+                  <span class="upload-plus">＋</span>
+                  <span class="upload-caption">Add photo</span>
+                </button>
+                <img class="upload-preview" alt="Model 1 photo preview" hidden />
+                <div class="upload-popover" role="dialog" aria-label="Model 1 photo options" hidden>
+                  <img class="upload-popover-preview" alt="Current model 1 photo preview" hidden />
+                  <button type="button" class="popover-option" data-source="camera">Take photo</button>
+                  <button type="button" class="popover-option" data-source="gallery">Choose from gallery</button>
+                  <input type="file" accept="image/*" capture="environment" data-camera-input hidden />
+                  <input type="file" accept="image/*" data-gallery-input hidden />
+                </div>
+              </div>
+            </div>
+
+            <div class="photo-card" data-photo-card data-photo-key="model2">
+              <div class="photo-header">
+                <label>Model 2</label>
+                <span class="photo-optional-badge">Optional</span>
+              </div>
+              <div class="upload-box" data-upload-box>
+                <button type="button" class="upload-trigger" aria-label="Add model 2 photo">
+                  <span class="upload-plus">＋</span>
+                  <span class="upload-caption">Add photo</span>
+                </button>
+                <img class="upload-preview" alt="Model 2 photo preview" hidden />
+                <div class="upload-popover" role="dialog" aria-label="Model 2 photo options" hidden>
+                  <img class="upload-popover-preview" alt="Current model 2 photo preview" hidden />
+                  <button type="button" class="popover-option" data-source="camera">Take photo</button>
+                  <button type="button" class="popover-option" data-source="gallery">Choose from gallery</button>
+                  <input type="file" accept="image/*" capture="environment" data-camera-input hidden />
+                  <input type="file" accept="image/*" data-gallery-input hidden />
+                </div>
+              </div>
+            </div>
+
+            <div class="photo-card" data-photo-card data-photo-key="tag">
               <div class="photo-header">
                 <label>Tag</label>
+                <span class="photo-optional-badge">Optional</span>
               </div>
               <div class="upload-box" data-upload-box>
                 <button type="button" class="upload-trigger" aria-label="Add tag photo">
@@ -221,6 +255,14 @@
                 <div class="review-photo-card">
                   <span>Back</span>
                   <img id="review-photo-back" alt="Back review photo" />
+                </div>
+                <div class="review-photo-card">
+                  <span>Model 1</span>
+                  <img id="review-photo-model1" alt="Model 1 review photo" />
+                </div>
+                <div class="review-photo-card">
+                  <span>Model 2</span>
+                  <img id="review-photo-model2" alt="Model 2 review photo" />
                 </div>
                 <div class="review-photo-card">
                   <span>Tag</span>
@@ -445,6 +487,13 @@
         syncCategoryNext();
       }
 
+      const categoryClose = document.getElementById('category-close');
+      if (categoryClose) {
+        categoryClose.addEventListener('click', () => {
+          window.location.href = '/dashboard';
+        });
+      }
+
       const optionsBack = document.getElementById('options-back');
       if (optionsBack) {
         optionsBack.addEventListener('click', () => {
@@ -461,17 +510,19 @@
       }
 
       const photosNext = document.getElementById('photos-next');
+      const photoSlotKeys = ['front', 'back', 'model1', 'model2', 'tag'];
+      const getPhotoStorageKey = (photoKey) => `listing-photo-${photoKey}`;
       const syncPhotosNext = () => {
         if (!photosNext) return;
-        const frontReady = !!sessionStorage.getItem('listing-photo-front');
-        const backReady = !!sessionStorage.getItem('listing-photo-back');
+        const frontReady = !!sessionStorage.getItem(getPhotoStorageKey('front'));
+        const backReady = !!sessionStorage.getItem(getPhotoStorageKey('back'));
         photosNext.disabled = !(frontReady && backReady);
       };
 
       if (photosNext) {
         photosNext.addEventListener('click', () => {
-          const frontReady = !!sessionStorage.getItem('listing-photo-front');
-          const backReady = !!sessionStorage.getItem('listing-photo-back');
+          const frontReady = !!sessionStorage.getItem(getPhotoStorageKey('front'));
+          const backReady = !!sessionStorage.getItem(getPhotoStorageKey('back'));
           if (!frontReady || !backReady) return;
 
           const category = new URLSearchParams(window.location.search).get('category');
@@ -618,6 +669,8 @@
         const photoMap = {
           front: document.getElementById('review-photo-front'),
           back: document.getElementById('review-photo-back'),
+          model1: document.getElementById('review-photo-model1'),
+          model2: document.getElementById('review-photo-model2'),
           tag: document.getElementById('review-photo-tag'),
         };
 
@@ -657,7 +710,7 @@
 
         Object.entries(photoMap).forEach(([key, img]) => {
           if (!img) return;
-          const value = sessionStorage.getItem(`listing-photo-${key}`);
+          const value = sessionStorage.getItem(getPhotoStorageKey(key));
           if (value) {
             img.src = value;
             img.hidden = false;
@@ -672,15 +725,22 @@
       const summaryGenerate = document.getElementById('summary-generate');
       if (summaryGenerate) {
         summaryGenerate.addEventListener('click', async () => {
-          const frontImage64 = sessionStorage.getItem('listing-photo-front');
-          const backImage64 = sessionStorage.getItem('listing-photo-back');
-          const tagImage64 = sessionStorage.getItem('listing-photo-tag') || undefined;
+          const frontImage64 = sessionStorage.getItem(getPhotoStorageKey('front'));
+          const backImage64 = sessionStorage.getItem(getPhotoStorageKey('back'));
+          const modelImage64A = sessionStorage.getItem(getPhotoStorageKey('model1')) || undefined;
+          const modelImage64B = sessionStorage.getItem(getPhotoStorageKey('model2')) || undefined;
+          const tagImage64 = sessionStorage.getItem(getPhotoStorageKey('tag')) || undefined;
           const draft = JSON.parse(sessionStorage.getItem('listing-draft') || '{}');
           const category = new URLSearchParams(window.location.search).get('category');
           const parsedPrice = normalizePriceInput(document.getElementById('listing-price')?.value ?? draft.price ?? defaultListingPrice);
           const priceValue = parsedPrice ?? getSavedPrice();
 
           if (!frontImage64 || !backImage64) {
+            return;
+          }
+
+          if ((modelImage64A && !modelImage64B) || (!modelImage64A && modelImage64B)) {
+            alert('Please provide both model photos, or leave both empty to let AI generate them.');
             return;
           }
 
@@ -694,6 +754,8 @@
               body: JSON.stringify({
                 frontImage64,
                 backImage64,
+                modelImage64A,
+                modelImage64B,
                 tagImage64,
                 info: {
                   category: category || draft.category || '',
@@ -755,6 +817,21 @@
         const caption = box.querySelector('.upload-caption');
         const cameraInput = box.querySelector('[data-camera-input]');
         const galleryInput = box.querySelector('[data-gallery-input]');
+        const photoKey = box.closest('[data-photo-card]')?.dataset.photoKey || '';
+
+        const restorePreview = () => {
+          if (!photoKey || !preview) return;
+          const savedValue = sessionStorage.getItem(getPhotoStorageKey(photoKey));
+          if (!savedValue) {
+            return;
+          }
+
+          preview.src = savedValue;
+          preview.hidden = false;
+          if (plus) plus.hidden = true;
+          if (caption) caption.textContent = 'Photo added';
+          box.classList.add('is-ready');
+        };
 
         const openPopover = () => {
           if (!popover) return;
@@ -796,9 +873,8 @@
               if (caption) caption.textContent = file.name.length > 18 ? `${file.name.slice(0, 18)}…` : file.name;
               box.classList.add('is-ready');
 
-              const cardLabel = box.closest('[data-photo-card]')?.querySelector('.photo-header label')?.textContent?.trim().toLowerCase();
-              if (cardLabel) {
-                sessionStorage.setItem(`listing-photo-${cardLabel}`, dataUrl);
+              if (photoKey) {
+                sessionStorage.setItem(getPhotoStorageKey(photoKey), dataUrl);
               }
               syncPhotosNext();
             } catch (error) {
@@ -835,6 +911,8 @@
             closePopover();
           }
         });
+
+        restorePreview();
       });
 
       document.querySelectorAll('.aspect-select').forEach((selectRoot) => {

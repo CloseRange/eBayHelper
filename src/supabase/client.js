@@ -36,14 +36,20 @@ async function getAllListingSkus() {
   return (data || []).map((row) => row.sku).filter(Boolean);
 }
 
-async function getDashboardListings({ skuQuery = '' } = {}) {
+async function getDashboardListings({ skuQuery = '', state = null } = {}) {
   const client = getSupabase();
   const normalizedSkuQuery = typeof skuQuery === 'string' ? skuQuery.trim() : '';
+  const parsedState = state === null || state === undefined || state === '' ? null : Number(state);
+  const hasStateFilter = Number.isFinite(parsedState);
 
   let query = client
     .from('listing')
     .select('title, price, sku, created_at')
     .order('created_at', { ascending: false });
+
+  if (hasStateFilter) {
+    query = query.eq('state', parsedState);
+  }
 
   if (normalizedSkuQuery) {
     query = query.ilike('sku', `%${normalizedSkuQuery}%`);
@@ -204,6 +210,49 @@ async function getLogs({ limit = 200 } = {}) {
   return [];
 }
 
+async function getSaleDetails() {
+  const client = getSupabase();
+  const selectVariants = [
+    'sku, sold_price, days_alive, created_at',
+    'sku, price, days_alive, created_at',
+  ];
+
+  let lastError = null;
+
+  for (const selectClause of selectVariants) {
+    const { data, error } = await client
+      .from('sale_details')
+      .select(selectClause)
+      .order('created_at', { ascending: true });
+
+    if (!error) {
+      return (data || []).map((row) => ({
+        sku: row?.sku || '—',
+        sold_price: row?.sold_price !== undefined ? row.sold_price : row?.price,
+        days_alive: row?.days_alive,
+        created_at: row?.created_at || null,
+      }));
+    }
+
+    lastError = error;
+    const message = typeof error.message === 'string' ? error.message.toLowerCase() : '';
+    const askedForSoldPrice = selectClause.includes('sold_price');
+
+    if (
+      askedForSoldPrice &&
+      (message.includes('column') || message.includes('schema cache')) &&
+      message.includes('sold_price')
+    ) {
+      continue;
+    }
+
+    break;
+  }
+
+  console.error('[getSaleDetails] Supabase error:', lastError);
+  throw lastError || new Error('Unable to load sale details.');
+}
+
 async function getPriceRates() {
   const client = getSupabase();
   const { data, error } = await client
@@ -219,12 +268,21 @@ async function getPriceRates() {
   return Array.isArray(data) ? data : [];
 }
 
-async function getListingsForPriceRateCheck() {
+async function getListingsForPriceRateCheck({ state = null } = {}) {
   const client = getSupabase();
-  const { data, error } = await client
+  const parsedState = state === null || state === undefined || state === '' ? null : Number(state);
+  const hasStateFilter = Number.isFinite(parsedState);
+
+  let query = client
     .from('listing')
-    .select('sku, price, created_at')
+    .select('sku, price, created_at, state')
     .order('created_at', { ascending: false });
+
+  if (hasStateFilter) {
+    query = query.eq('state', parsedState);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('[getListingsForPriceRateCheck] Supabase error:', error);
@@ -529,6 +587,104 @@ async function updateListingState(sku, newState, title) {
 
   return data;
 }
+async function updateListingTableState(sku, newState) {
+  const client = getSupabase();
+
+  if (!sku) {
+    throw new Error('sku is required.');
+  }
+
+  if (newState === undefined || newState === null || newState === '') {
+    throw new Error('newState is required.');
+  }
+
+  const parsedState = Number(newState);
+  if (!Number.isFinite(parsedState)) {
+    throw new Error('newState must be a number.');
+  }
+
+  const { data, error } = await client
+    .from('listing')
+    .update({
+      state: parsedState,
+    })
+    .eq('sku', sku)
+    .select('sku, state')
+    .single();
+
+  if (error) {
+    console.error('[updateListingTableState] Supabase error:', error);
+    throw error;
+  }
+
+  return data;
+}
+async function addSaleDetails({ sku, soldPrice, daysAlive }) {
+  const client = getSupabase();
+
+  if (!sku) {
+    throw new Error('sku is required.');
+  }
+
+  if (soldPrice === undefined || soldPrice === null || soldPrice === '') {
+    throw new Error('soldPrice is required.');
+  }
+
+  const parsedPrice = Number(soldPrice);
+  if (!Number.isFinite(parsedPrice)) {
+    throw new Error('soldPrice must be a number.');
+  }
+
+  const parsedDaysAlive = Number(daysAlive);
+  if (!Number.isFinite(parsedDaysAlive)) {
+    throw new Error('daysAlive must be a number.');
+  }
+
+  const rowOptions = [
+    {
+      sku,
+      sold_price: parsedPrice,
+      days_alive: parsedDaysAlive,
+    },
+    {
+      sku,
+      price: parsedPrice,
+      days_alive: parsedDaysAlive,
+    },
+  ];
+
+  let lastError = null;
+
+  for (const row of rowOptions) {
+    const { data, error } = await client
+      .from('sale_details')
+      .insert(row)
+      .select()
+      .single();
+
+    if (!error) {
+      return data;
+    }
+
+    lastError = error;
+
+    const message = typeof error.message === 'string' ? error.message.toLowerCase() : '';
+    const triedSoldPriceColumn = Object.prototype.hasOwnProperty.call(row, 'sold_price');
+
+    if (
+      triedSoldPriceColumn &&
+      (message.includes('column') || message.includes('schema cache')) &&
+      message.includes('sold_price')
+    ) {
+      continue;
+    }
+
+    break;
+  }
+
+  console.error('[addSaleDetails] Supabase error:', lastError);
+  throw lastError || new Error('Unable to add sale details.');
+}
 async function deleteListingState(sku) {
   const client = getSupabase();
 
@@ -768,6 +924,7 @@ module.exports = {
   getDashboardListings,
   getPendingListings,
   getLogs,
+  getSaleDetails,
   getPriceRates,
   getListingsForPriceRateCheck,
   savePriceRate,
@@ -777,6 +934,8 @@ module.exports = {
   createListing,
   addListingImages,
   updateListingState,
+  updateListingTableState,
+  addSaleDetails,
   deleteListingState,
   addLog,
   updatePrice,

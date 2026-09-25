@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const session = require('express-session');
 const EbayAuthToken = require('ebay-oauth-nodejs-client');
-const { getSupabase, isSupabaseConfigured, getDashboardListings, getPendingListings, getLogs, getPriceRates, getListingsForPriceRateCheck, savePriceRate, deletePriceRate, getListingDetailsBySku, deleteListingAndAssetsBySku } = require('./supabase/client');
+const { getSupabase, isSupabaseConfigured, getDashboardListings, getPendingListings, getLogs, getSaleDetails, getPriceRates, getListingsForPriceRateCheck, savePriceRate, deletePriceRate, getListingDetailsBySku, deleteListingAndAssetsBySku, updateListingTableState, addSaleDetails } = require('./supabase/client');
 const { getEbayAccessToken, getEbaySignInUrl, exchangeAuthCodeForTokens, getRequestedScopes } = require('./ebay');
 const { ebaySetup, getEbayPostingStatusForSku, getActiveListings, getEbayListingDetailsForSku, updateListingPrice } = require('./ebay/ebay');
 const { types, getAspects } = require('./ebay/ebay_categories');
@@ -46,7 +46,12 @@ app.use((req, res, next) => {
 			email: DEFAULT_LOGIN_EMAIL,
 		};
 	}
+	if (typeof req.session.isEbayConnected !== 'boolean') {
+		req.session.isEbayConnected = true;
+	}
 	res.locals.currentUser = req.session.user || null;
+	res.locals.currentPath = req.path || '/';
+	res.locals.isEbayConnected = req.session.isEbayConnected;
 	next();
 });
 
@@ -93,6 +98,73 @@ async function ensureEbayAccessToken(req) {
 	}
 
 	return false;
+}
+
+async function getFirstListingImagesBySku(skus = []) {
+	const client = getSupabase();
+	const normalizedSkus = [...new Set(
+		(skus || [])
+			.map((sku) => String(sku || '').trim())
+			.filter(Boolean)
+	)];
+
+	if (!normalizedSkus.length) {
+		return new Map();
+	}
+
+	const { data, error } = await client
+		.from('listing_image')
+		.select('sku, image_url, image_order')
+		.in('sku', normalizedSkus)
+		.order('image_order', { ascending: true });
+
+	if (error) {
+		console.warn('[getFirstListingImagesBySku] Unable to load listing images:', error.message || error);
+		return new Map();
+	}
+
+	const firstImagesBySku = new Map();
+
+	for (const row of data || []) {
+		const sku = String(row?.sku || '').trim();
+		const imageUrl = String(row?.image_url || '').trim();
+
+		if (!sku || !imageUrl || firstImagesBySku.has(sku)) {
+			continue;
+		}
+
+		firstImagesBySku.set(sku, imageUrl);
+	}
+
+	return firstImagesBySku;
+}
+
+async function buildDashboardListingCards(stateFilter) {
+	if (!isSupabaseConfigured()) {
+		throw new Error('Database is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY.');
+	}
+
+	const rows = await getDashboardListings({ state: stateFilter });
+	const imageMap = await getFirstListingImagesBySku(rows.map((row) => row?.sku));
+	const now = Date.now();
+	const msPerDay = 1000 * 60 * 60 * 24;
+
+	return rows.map((row) => {
+		const createdAtValue = row.created_at ? Date.parse(row.created_at) : NaN;
+		const daysActive = Number.isFinite(createdAtValue)
+			? Math.max(0, Math.floor((now - createdAtValue) / msPerDay))
+			: null;
+
+		const parsedPrice = row.price === null || row.price === undefined ? NaN : Number(row.price);
+
+		return {
+			title: row.title || 'Untitled listing',
+			sku: row.sku || '—',
+			imageUrl: imageMap.get(String(row.sku || '').trim()) || '',
+			priceDisplay: Number.isFinite(parsedPrice) ? `$${parsedPrice.toFixed(2)}` : '—',
+			ageDisplay: daysActive === null ? '—' : String(daysActive),
+		};
+	});
 }
 
 app.get('/', (req, res) => {
@@ -149,6 +221,149 @@ app.get('/settings/prices', requireAuth, async (req, res) => {
 		rates,
 		error,
 		success,
+	});
+});
+
+app.get('/analytics', requireAuth, async (req, res) => {
+	const currencyFormatter = new Intl.NumberFormat('en-US', {
+		style: 'currency',
+		currency: 'USD',
+		maximumFractionDigits: 2,
+	});
+	const wholeNumberFormatter = new Intl.NumberFormat('en-US');
+	const weekdayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+	let error = null;
+	let sales = [];
+
+	try {
+		if (!isSupabaseConfigured()) {
+			throw new Error('Database is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY.');
+		}
+
+		sales = await getSaleDetails();
+	} catch (err) {
+		error = err?.message || 'Unable to load analytics.';
+		sales = [];
+	}
+
+	const now = Date.now();
+	const dayMs = 1000 * 60 * 60 * 24;
+	const weekAgo = now - (7 * dayMs);
+	const monthAgo = now - (30 * dayMs);
+	const validSales = (sales || [])
+		.map((sale) => {
+			const soldAt = sale?.created_at ? Date.parse(sale.created_at) : NaN;
+			const soldPrice = Number(sale?.sold_price);
+			const daysAlive = Number(sale?.days_alive);
+
+			return {
+				sku: String(sale?.sku || '—').trim() || '—',
+				soldAt,
+				soldAtLabel: Number.isFinite(soldAt)
+					? new Date(soldAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+					: 'Unknown',
+				soldPrice: Number.isFinite(soldPrice) ? soldPrice : 0,
+				daysAlive: Number.isFinite(daysAlive) ? daysAlive : 0,
+			};
+		})
+		.filter((sale) => Number.isFinite(sale.soldAt));
+
+	const totalRevenueValue = validSales.reduce((sum, sale) => sum + sale.soldPrice, 0);
+	const weekRevenueValue = validSales.reduce((sum, sale) => sum + (sale.soldAt >= weekAgo ? sale.soldPrice : 0), 0);
+	const monthRevenueValue = validSales.reduce((sum, sale) => sum + (sale.soldAt >= monthAgo ? sale.soldPrice : 0), 0);
+	const avgDaysAliveValue = validSales.length
+		? validSales.reduce((sum, sale) => sum + sale.daysAlive, 0) / validSales.length
+		: 0;
+	const avgSaleValue = validSales.length ? totalRevenueValue / validSales.length : 0;
+
+	const weekdayRollup = weekdayNames.map((name, index) => {
+		const bucketSales = validSales.filter((sale) => new Date(sale.soldAt).getDay() === index);
+		const revenue = bucketSales.reduce((sum, sale) => sum + sale.soldPrice, 0);
+		return {
+			name,
+			count: bucketSales.length,
+			revenue,
+		};
+	});
+
+	const salesByDateMap = new Map();
+	for (let offset = 29; offset >= 0; offset -= 1) {
+		const date = new Date(now - (offset * dayMs));
+		const key = date.toISOString().slice(0, 10);
+		salesByDateMap.set(key, {
+			label: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+			revenue: 0,
+			count: 0,
+		});
+	}
+
+	validSales.forEach((sale) => {
+		const key = new Date(sale.soldAt).toISOString().slice(0, 10);
+		const bucket = salesByDateMap.get(key);
+		if (!bucket) {
+			return;
+		}
+
+		bucket.revenue += sale.soldPrice;
+		bucket.count += 1;
+	});
+
+	const ageBuckets = [
+		{ label: '0-7 days', min: 0, max: 7 },
+		{ label: '8-14 days', min: 8, max: 14 },
+		{ label: '15-30 days', min: 15, max: 30 },
+		{ label: '31-60 days', min: 31, max: 60 },
+		{ label: '61-90 days', min: 61, max: 90 },
+		{ label: '90+ days', min: 91, max: Number.POSITIVE_INFINITY },
+	].map((bucket) => ({
+		...bucket,
+		count: validSales.filter((sale) => sale.daysAlive >= bucket.min && sale.daysAlive <= bucket.max).length,
+	}));
+
+	const recentSales = [...validSales]
+		.sort((left, right) => right.soldAt - left.soldAt)
+		.slice(0, 10)
+		.map((sale) => ({
+			sku: sale.sku,
+			dateLabel: new Date(sale.soldAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+			priceLabel: currencyFormatter.format(sale.soldPrice),
+			daysAliveLabel: wholeNumberFormatter.format(Math.round(sale.daysAlive)),
+		}));
+
+	return res.render('analytics', {
+		currentUser: req.session.user,
+		error,
+		hasSales: validSales.length > 0,
+		metrics: {
+			totalRevenueLabel: currencyFormatter.format(totalRevenueValue),
+			weekRevenueLabel: currencyFormatter.format(weekRevenueValue),
+			monthRevenueLabel: currencyFormatter.format(monthRevenueValue),
+			totalSalesLabel: wholeNumberFormatter.format(validSales.length),
+			avgSaleLabel: currencyFormatter.format(avgSaleValue),
+			avgDaysAliveLabel: wholeNumberFormatter.format(Math.round(avgDaysAliveValue)),
+		},
+		weekdayTable: weekdayRollup.map((row) => ({
+			name: row.name,
+			countLabel: wholeNumberFormatter.format(row.count),
+			revenueLabel: currencyFormatter.format(row.revenue),
+		})),
+		chartData: {
+			salesTrend: {
+				labels: [...salesByDateMap.values()].map((entry) => entry.label),
+				revenue: [...salesByDateMap.values()].map((entry) => Number(entry.revenue.toFixed(2))),
+				counts: [...salesByDateMap.values()].map((entry) => entry.count),
+			},
+			weekdayRevenue: {
+				labels: weekdayRollup.map((row) => row.name.slice(0, 3)),
+				values: weekdayRollup.map((row) => Number(row.revenue.toFixed(2))),
+				counts: weekdayRollup.map((row) => row.count),
+			},
+			ageBuckets: {
+				labels: ageBuckets.map((bucket) => bucket.label),
+				values: ageBuckets.map((bucket) => bucket.count),
+			},
+		},
+		recentSales,
 	});
 });
 
@@ -250,57 +465,71 @@ app.post('/settings/prices/:id/delete', requireAuth, async (req, res) => {
 });
 
 app.get('/dashboard', requireAuth, async (req, res) => {
-	let listings = [];
+	const requestedState = Number(req.query?.state);
+	const stateFilter = Number.isFinite(requestedState) ? requestedState : 1;
+	const pageHeading = stateFilter === 0 ? 'Pending' : stateFilter === 4 ? 'Archived' : 'Listings';
+
+	return res.render('dashboard', {
+		listings: [],
+		pageHeading,
+		stateFilter,
+		skuQuery: '',
+		error: null,
+		ebayConnectionError: req.session.isEbayConnected === false ? 'Not connected to eBay API' : null,
+		currentUser: req.session.user,
+	});
+});
+
+app.get('/api/dashboard-listings', requireAuth, async (req, res) => {
+	const requestedState = Number(req.query?.state);
+	const stateFilter = Number.isFinite(requestedState) ? requestedState : 1;
+
+	try {
+		const listings = await buildDashboardListingCards(stateFilter);
+		return res.json({
+			ok: true,
+			listings,
+			state: stateFilter,
+		});
+	} catch (err) {
+		console.error('[GET /api/dashboard-listings] Failed:', err.message || err);
+		return res.status(500).json({
+			ok: false,
+			error: err?.message || 'Unable to load listing cards.',
+		});
+	}
+});
+
+app.get('/pending', requireAuth, async (req, res) => {
 	let pendingListings = [];
 	let error = null;
-	let ebayConnectionError = null;
 
 	try {
 		if (!isSupabaseConfigured()) {
 			throw new Error('Database is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY.');
 		}
 
-		const [rows, pendingRows] = await Promise.all([
-			getDashboardListings(),
-			getPendingListings(),
-		]);
-		const now = Date.now();
-		const msPerDay = 1000 * 60 * 60 * 24;
-
-		listings = rows.map((row) => {
-			const createdAtValue = row.created_at ? Date.parse(row.created_at) : NaN;
-			const daysActive = Number.isFinite(createdAtValue)
-				? Math.max(0, Math.floor((now - createdAtValue) / msPerDay))
-				: null;
-
-			const parsedPrice = row.price === null || row.price === undefined ? NaN : Number(row.price);
-
-			return {
-				title: row.title || 'Untitled listing',
-				sku: row.sku || '—',
-				priceDisplay: Number.isFinite(parsedPrice) ? `$${parsedPrice.toFixed(2)}` : '—',
-				ageDisplay: daysActive === null ? '—' : String(daysActive),
-			};
-		});
-
-		pendingListings = Array.isArray(pendingRows) ? pendingRows : [];
+		const rows = await getPendingListings();
+		pendingListings = Array.isArray(rows) ? rows : [];
 	} catch (err) {
-		error = err.message || 'Unable to load listing table rows.';
+		error = err.message || 'Unable to load pending item rows.';
 	}
 
-	try {
-		await getActiveListings();
-	} catch (err) {
-		ebayConnectionError = 'Not connected to eBay API';
-		console.warn('[GET /dashboard] eBay API connection check failed:', err.message || err);
-	}
-
-	return res.render('dashboard', {
-		listings,
+	return res.render('pending', {
 		pendingListings,
-		skuQuery: '',
 		error,
-		ebayConnectionError,
+		currentUser: req.session.user,
+	});
+});
+
+app.get('/orders', requireAuth, async (req, res) => {
+	return res.render('dashboard', {
+		listings: [],
+		pageHeading: 'Orders',
+		stateFilter: 2,
+		skuQuery: '',
+		error: null,
+		ebayConnectionError: null,
 		currentUser: req.session.user,
 	});
 });
@@ -312,6 +541,46 @@ app.get('/setupEbay', requireAuth, async (req, res) => {
 		console.error('[GET /setupEbay] Failed:', err.message || err);
 		return res.redirect(`/dashboard?setup=error&message=${encodeURIComponent(err.message || 'Unable to start eBay auth flow.')}`);
 	}
+});
+
+async function checkEbayConnection(req) {
+	try {
+		const listings = await getActiveListings();
+		req.session.isEbayConnected = true;
+		return {
+			connected: true,
+			message: `Connected to eBay${Array.isArray(listings) ? ` (${listings.length} active listings found)` : ''}.`,
+			activeListingsCount: Array.isArray(listings) ? listings.length : 0,
+		};
+	} catch (err) {
+		req.session.isEbayConnected = false;
+		return {
+			connected: false,
+			message: err?.message ? `Not connected to eBay API: ${err.message}` : 'Not connected to eBay API',
+			activeListingsCount: 0,
+		};
+	}
+}
+
+app.get('/ebay', requireAuth, async (req, res) => {
+	const connection = await checkEbayConnection(req);
+	return res.render('ebay', {
+		currentUser: req.session.user,
+		currentPath: req.path,
+		isEbayConnected: req.session.isEbayConnected,
+		connectionMessage: connection.message,
+		activeListingsCount: connection.activeListingsCount,
+		statusBanner: req.query?.status ? String(req.query.status) : '',
+	});
+});
+
+app.post('/ebay/test', requireAuth, async (req, res) => {
+	const connection = await checkEbayConnection(req);
+	return res.redirect(`/ebay?status=${encodeURIComponent(connection.connected ? 'Test connection succeeded.' : connection.message)}`);
+});
+
+app.post('/ebay/sync', requireAuth, async (req, res) => {
+	return beginMint(res);
 });
 
 app.get('/create-listing', requireAuth, async (req, res) => {
@@ -364,6 +633,10 @@ app.post('/api/listing/generate', requireAuth, async (req, res) => {
 		hydrateEbaySessionToken(req);
 		const frontImage64 = typeof req.body?.frontImage64 === 'string' ? req.body.frontImage64 : '';
 		const backImage64 = typeof req.body?.backImage64 === 'string' ? req.body.backImage64 : '';
+		const rawModelImage64A = typeof req.body?.modelImage64A === 'string' ? req.body.modelImage64A : undefined;
+		const rawModelImage64B = typeof req.body?.modelImage64B === 'string' ? req.body.modelImage64B : undefined;
+		const modelImage64A = rawModelImage64A && rawModelImage64A.trim() ? rawModelImage64A : undefined;
+		const modelImage64B = rawModelImage64B && rawModelImage64B.trim() ? rawModelImage64B : undefined;
 		const rawTagImage64 = typeof req.body?.tagImage64 === 'string' ? req.body.tagImage64 : undefined;
 		const tagImage64 = rawTagImage64 && rawTagImage64.trim() ? rawTagImage64 : undefined;
 		const rawInfo = req.body?.info && typeof req.body.info === 'object' ? req.body.info : {};
@@ -403,12 +676,18 @@ app.post('/api/listing/generate', requireAuth, async (req, res) => {
 			});
 		}
 
+		if ((modelImage64A && !modelImage64B) || (!modelImage64A && modelImage64B)) {
+			return res.status(400).json({
+				error: 'Provide both model photos or leave both empty to allow AI generation.',
+			});
+		}
+
 		if (!Number.isFinite(Number(info.price)) || Number(info.price) <= 0) {
 			info.price = defaultBasePrice;
 		}
 
 		const sku = await generateSKU();
-		void generateListing(frontImage64, backImage64, tagImage64, sku, info).catch((err) => {
+		void generateListing(frontImage64, backImage64, modelImage64A, modelImage64B, tagImage64, sku, info).catch((err) => {
 			console.error('[POST /api/listing/generate] Background listing generation failed:', err);
 		});
 
@@ -605,6 +884,74 @@ app.delete('/api/listing/:sku', requireAuth, async (req, res) => {
 	}
 });
 
+app.post('/api/listing/:sku/finalize', requireAuth, async (req, res) => {
+	const sku = typeof req.params.sku === 'string' ? req.params.sku.trim() : '';
+
+	if (!sku) {
+		return res.status(400).json({ error: 'SKU is required.' });
+	}
+
+	try {
+		if (!isSupabaseConfigured()) {
+			return res.status(500).json({ error: 'Database is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY.' });
+		}
+
+		const details = await getListingDetailsBySku(sku);
+		const listing = details && details.listing ? details.listing : null;
+		if (!listing) {
+			const notFoundError = new Error('Listing not found for this SKU.');
+			notFoundError.code = 'PGRST116';
+			throw notFoundError;
+		}
+
+		const priceValue = Number(listing.price);
+		if (!Number.isFinite(priceValue)) {
+			throw new Error('Listing price is missing or invalid.');
+		}
+
+		const createdAtValue = listing.created_at ? Date.parse(listing.created_at) : NaN;
+		const msPerDay = 1000 * 60 * 60 * 24;
+		const daysAlive = Number.isFinite(createdAtValue)
+			? Math.max(0, Math.floor((Date.now() - createdAtValue) / msPerDay))
+			: 0;
+
+		const previousState = listing.state;
+		await updateListingTableState(sku, 3);
+
+		try {
+			await addSaleDetails({
+				sku,
+				soldPrice: priceValue,
+				daysAlive,
+			});
+		} catch (saleError) {
+			if (previousState !== undefined && previousState !== null && previousState !== '') {
+				try {
+					await updateListingTableState(sku, previousState);
+				} catch (rollbackError) {
+					console.error('[POST /api/listing/:sku/finalize] Rollback failed:', rollbackError.message || rollbackError);
+				}
+			}
+			throw saleError;
+		}
+
+		return res.json({
+			ok: true,
+			sku,
+			state: 3,
+			daysAlive,
+			soldPrice: priceValue,
+		});
+	} catch (err) {
+		const message = err?.code === 'PGRST116'
+			? 'Listing not found for this SKU.'
+			: (err.message || 'Unable to finalize listing.');
+
+		console.error('[POST /api/listing/:sku/finalize] Failed:', err.message || err);
+		return res.status(err?.code === 'PGRST116' ? 404 : 500).json({ error: message });
+	}
+});
+
 app.get('/api/listing/:sku/label.pdf', requireAuth, async (req, res) => {
 	const sku = typeof req.params.sku === 'string' ? req.params.sku.trim() : '';
 	console.log('[GET /api/listing/:sku/label.pdf] requested sku=', sku || '(empty)');
@@ -685,16 +1032,17 @@ async function applyPriceRateLadder() {
 			return;
 		}
 
-		const listings = await getListingsForPriceRateCheck();
+		const listings = await getListingsForPriceRateCheck({ state: 1 });
 		const now = Date.now();
 		const client = getSupabase();
 
 		for (const listing of listings) {
 			const sku = typeof listing?.sku === 'string' ? listing.sku.trim() : '';
+			const listingState = Number(listing?.state);
 			const price = Number(listing?.price);
 			const createdAt = listing?.created_at ? Date.parse(listing.created_at) : NaN;
 
-			if (!sku || !Number.isFinite(price) || !Number.isFinite(createdAt)) {
+			if (listingState !== 1 || !sku || !Number.isFinite(price) || !Number.isFinite(createdAt)) {
 				continue;
 			}
 

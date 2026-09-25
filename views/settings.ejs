@@ -6,38 +6,31 @@
     <title>Nine Lives Vintage | Settings</title>
     <link rel="stylesheet" href="/css/listings.css" />
   </head>
-  <body>
+  <body class="has-mobile-nav">
     <div class="page-shell narrow-shell">
-      <header class="wizard-header">
-        <div class="wizard-title-block">
-          <div class="brand-lockup">
-            <img src="/res/logo-brand.png" alt="Nine Lives Vintage logo" class="brand-logo-mark" />
-            <p class="brand-wordmark">Nine Lives Vintage</p>
-          </div>
-          <h1>Settings</h1>
-        </div>
-
-        <a class="back-button" href="/dashboard" aria-label="Back to dashboard">
-          <img src="/icons/arrow-big-left.svg" alt="Back to dashboard" />
-        </a>
+      <header class="top-logo-bar" aria-label="Site header">
+        <img src="/res/logo-header.png" alt="Nine Lives Vintage" class="top-logo-image" />
       </header>
 
-      <main class="wizard-card">
+      <main class="wizard-card settings-home-card">
         <div class="section-heading">
-          <p class="eyebrow muted">Account</p>
-          <h2>eBay access</h2>
+          <p class="eyebrow muted">Settings</p>
+          <h2>Settings</h2>
+          <p class="selected-category">Manage store configuration and pricing tools.</p>
         </div>
 
-        <div class="setting-actions">
-          <a class="mint-button" href="/setupEbay">
-            <img src="/icons/brain.svg" alt="Mint" />
-            Mint eBay access token
+        <section class="settings-home-actions" aria-label="Settings actions">
+          <a class="settings-link-button" href="/settings/prices">
+            <span class="settings-link-leading">
+              <span class="settings-link-icon"><img src="/icons/chart-line.svg" alt="" /></span>
+              <span>Price Ladder</span>
+            </span>
+            <img class="settings-link-chevron" src="/icons/arrow-big-right.svg" alt="" />
           </a>
-
-          <a class="secondary-button" href="/settings/prices">Price rates</a>
-          <a class="secondary-button" href="/settings/logs">View logs</a>
-        </div>
+        </section>
       </main>
+
+      <%- include('partials/mobile-nav', { currentPath }) %>
     </div>
   </body>
 </html>
