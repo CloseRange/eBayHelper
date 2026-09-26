@@ -25,7 +25,7 @@ async function generateSKU() {
         }
     }
 
-    return `${nextBin}-${nextSn + 20}`;
+    return `${nextBin}-${nextSn}`;
 }
 function formatAspects(aspects) {
     const result = {};
