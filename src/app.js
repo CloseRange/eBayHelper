@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const session = require('express-session');
 const EbayAuthToken = require('ebay-oauth-nodejs-client');
-const { getSupabase, isSupabaseConfigured, getDashboardListings, getPendingListings, getLogs, getSaleDetails, getPriceRates, getListingsForPriceRateCheck, savePriceRate, deletePriceRate, getListingDetailsBySku, deleteListingAndAssetsBySku, updateListingTableState, addSaleDetails, updateListingState } = require('./supabase/client');
+const { getSupabase, isSupabaseConfigured, getDashboardListings, getPendingListings, getLogs, getSaleDetails, getPriceRates, getListingsForPriceRateCheck, savePriceRate, deletePriceRate, getListingDetailsBySku, deleteListingAndAssetsBySku, addSaleDetails, updateListingState } = require('./supabase/client');
 const { getEbayAccessToken, getEbaySignInUrl, exchangeAuthCodeForTokens, getRequestedScopes } = require('./ebay');
 const { ebaySetup, getEbayPostingStatusForSku, getActiveListings, getEbayListingDetailsForSku, updateListingPrice } = require('./ebay/ebay');
 const { types, getAspects } = require('./ebay/ebay_categories');
@@ -1037,30 +1037,20 @@ app.post('/api/listing/:sku/finalize', requireAuth, async (req, res) => {
 			? Math.max(0, Math.floor((Date.now() - createdAtValue) / msPerDay))
 			: 0;
 
-		const previousState = listing.state;
-		await updateListingTableState(sku, 3);
+		await addSaleDetails({
+			sku,
+			soldPrice: priceValue,
+			daysAlive,
+		});
 
-		try {
-			await addSaleDetails({
-				sku,
-				soldPrice: priceValue,
-				daysAlive,
-			});
-		} catch (saleError) {
-			if (previousState !== undefined && previousState !== null && previousState !== '') {
-				try {
-					await updateListingTableState(sku, previousState);
-				} catch (rollbackError) {
-					console.error('[POST /api/listing/:sku/finalize] Rollback failed:', rollbackError.message || rollbackError);
-				}
-			}
-			throw saleError;
-		}
+		const deletionResult = await deleteListingAndAssetsBySku(sku);
 
 		return res.json({
 			ok: true,
 			sku,
-			state: 3,
+			finalized: true,
+			deletedListing: deletionResult.deletedListing,
+			deletedImages: deletionResult.deletedImages,
 			daysAlive,
 			soldPrice: priceValue,
 		});

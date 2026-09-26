@@ -53,11 +53,11 @@ async function endMint(res, req, code, state = null) {
                 if (err) {
                     console.error('[endMint] session save failed:', err);
                 }
-                return res.redirect('/dashboard');
+                return res.redirect('/ebay');
             });
         }
 
-        return res.redirect('/dashboard');
+        return res.redirect('/ebay');
     } catch (err) {
         console.error(err);
         return res.status(500).json({
