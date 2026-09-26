@@ -105,6 +105,7 @@
                   <img class="upload-popover-preview" alt="Current front photo preview" hidden />
                   <button type="button" class="popover-option" data-source="camera">Take photo</button>
                   <button type="button" class="popover-option" data-source="gallery">Choose from gallery</button>
+                  <button type="button" class="popover-option" data-source="clear" data-clear-image hidden>Clear current photo</button>
                   <input type="file" accept="image/*" capture="environment" data-camera-input hidden />
                   <input type="file" accept="image/*" data-gallery-input hidden />
                 </div>
@@ -125,6 +126,7 @@
                   <img class="upload-popover-preview" alt="Current back photo preview" hidden />
                   <button type="button" class="popover-option" data-source="camera">Take photo</button>
                   <button type="button" class="popover-option" data-source="gallery">Choose from gallery</button>
+                  <button type="button" class="popover-option" data-source="clear" data-clear-image hidden>Clear current photo</button>
                   <input type="file" accept="image/*" capture="environment" data-camera-input hidden />
                   <input type="file" accept="image/*" data-gallery-input hidden />
                 </div>
@@ -146,6 +148,7 @@
                   <img class="upload-popover-preview" alt="Current model 1 photo preview" hidden />
                   <button type="button" class="popover-option" data-source="camera">Take photo</button>
                   <button type="button" class="popover-option" data-source="gallery">Choose from gallery</button>
+                  <button type="button" class="popover-option" data-source="clear" data-clear-image hidden>Clear current photo</button>
                   <input type="file" accept="image/*" capture="environment" data-camera-input hidden />
                   <input type="file" accept="image/*" data-gallery-input hidden />
                 </div>
@@ -167,6 +170,7 @@
                   <img class="upload-popover-preview" alt="Current model 2 photo preview" hidden />
                   <button type="button" class="popover-option" data-source="camera">Take photo</button>
                   <button type="button" class="popover-option" data-source="gallery">Choose from gallery</button>
+                  <button type="button" class="popover-option" data-source="clear" data-clear-image hidden>Clear current photo</button>
                   <input type="file" accept="image/*" capture="environment" data-camera-input hidden />
                   <input type="file" accept="image/*" data-gallery-input hidden />
                 </div>
@@ -188,6 +192,7 @@
                   <img class="upload-popover-preview" alt="Current tag photo preview" hidden />
                   <button type="button" class="popover-option" data-source="camera">Take photo</button>
                   <button type="button" class="popover-option" data-source="gallery">Choose from gallery</button>
+                  <button type="button" class="popover-option" data-source="clear" data-clear-image hidden>Clear current photo</button>
                   <input type="file" accept="image/*" capture="environment" data-camera-input hidden />
                   <input type="file" accept="image/*" data-gallery-input hidden />
                 </div>
@@ -825,12 +830,37 @@
         const caption = box.querySelector('.upload-caption');
         const cameraInput = box.querySelector('[data-camera-input]');
         const galleryInput = box.querySelector('[data-gallery-input]');
+        const clearButton = box.querySelector('[data-clear-image]');
         const photoKey = box.closest('[data-photo-card]')?.dataset.photoKey || '';
+
+        const setClearButtonVisibility = () => {
+          if (!clearButton || !photoKey) return;
+          const hasImage = !!sessionStorage.getItem(getPhotoStorageKey(photoKey));
+          clearButton.hidden = !hasImage;
+        };
+
+        const clearCurrentPhoto = () => {
+          if (!photoKey || !preview) return;
+          sessionStorage.removeItem(getPhotoStorageKey(photoKey));
+          preview.removeAttribute('src');
+          preview.hidden = true;
+          if (popoverPreview) {
+            popoverPreview.removeAttribute('src');
+            popoverPreview.hidden = true;
+          }
+          if (plus) plus.hidden = false;
+          if (caption) caption.textContent = 'Add photo';
+          box.classList.remove('is-ready');
+          setClearButtonVisibility();
+          syncPhotosNext();
+          closePopover();
+        };
 
         const restorePreview = () => {
           if (!photoKey || !preview) return;
           const savedValue = sessionStorage.getItem(getPhotoStorageKey(photoKey));
           if (!savedValue) {
+            setClearButtonVisibility();
             return;
           }
 
@@ -839,6 +869,7 @@
           if (plus) plus.hidden = true;
           if (caption) caption.textContent = 'Photo added';
           box.classList.add('is-ready');
+          setClearButtonVisibility();
         };
 
         const openPopover = () => {
@@ -849,6 +880,7 @@
           } else if (popoverPreview) {
             popoverPreview.hidden = true;
           }
+          setClearButtonVisibility();
           popover.removeAttribute('hidden');
           box.classList.add('is-open');
         };
@@ -884,6 +916,7 @@
               if (photoKey) {
                 sessionStorage.setItem(getPhotoStorageKey(photoKey), dataUrl);
               }
+              setClearButtonVisibility();
               syncPhotosNext();
             } catch (error) {
               console.error('Photo compression failed:', error);
@@ -909,6 +942,10 @@
           option.addEventListener('click', (event) => {
             event.stopPropagation();
             const source = option.dataset.source;
+            if (source === 'clear') {
+              clearCurrentPhoto();
+              return;
+            }
             const input = source === 'camera' ? cameraInput : galleryInput;
             if (input) input.click();
           });
@@ -921,6 +958,7 @@
         });
 
         restorePreview();
+        setClearButtonVisibility();
       });
 
       document.querySelectorAll('.aspect-select').forEach((selectRoot) => {
