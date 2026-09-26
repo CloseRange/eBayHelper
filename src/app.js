@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const session = require('express-session');
 const EbayAuthToken = require('ebay-oauth-nodejs-client');
-const { getSupabase, isSupabaseConfigured, getDashboardListings, getPendingListings, getLogs, getSaleDetails, getPriceRates, getListingsForPriceRateCheck, savePriceRate, deletePriceRate, getListingDetailsBySku, deleteListingAndAssetsBySku, updateListingTableState, addSaleDetails } = require('./supabase/client');
+const { getSupabase, isSupabaseConfigured, getDashboardListings, getPendingListings, getLogs, getSaleDetails, getPriceRates, getListingsForPriceRateCheck, savePriceRate, deletePriceRate, getListingDetailsBySku, deleteListingAndAssetsBySku, updateListingTableState, addSaleDetails, updateListingState } = require('./supabase/client');
 const { getEbayAccessToken, getEbaySignInUrl, exchangeAuthCodeForTokens, getRequestedScopes } = require('./ebay');
 const { ebaySetup, getEbayPostingStatusForSku, getActiveListings, getEbayListingDetailsForSku, updateListingPrice } = require('./ebay/ebay');
 const { types, getAspects } = require('./ebay/ebay_categories');
@@ -16,6 +16,7 @@ const DEFAULT_LOGIN_EMAIL = 'michael.m.hulbert@gmail.com';
 const DEFAULT_LOGIN_PASSCODE = process.env.LOGIN_PASSCODE || 'passcode';
 
 const isProduction = process.env.NODE_ENV === 'production';
+let listingGenerationQueue = Promise.resolve();
 	
 // Minimal Express app — stripped of routes and middleware.
 const app = express();
@@ -201,6 +202,18 @@ async function buildDashboardListingCards(stateFilter) {
 			ageDisplay: daysActive === null ? '—' : String(daysActive),
 		};
 	});
+}
+
+function enqueueListingGeneration(task) {
+	listingGenerationQueue = listingGenerationQueue
+		.then(async () => {
+			await task();
+		})
+		.catch((err) => {
+			console.error('[listing-generation-queue] Job failed:', err.message || err);
+		});
+
+	return listingGenerationQueue;
 }
 
 app.get('/', (req, res) => {
@@ -795,8 +808,9 @@ app.post('/api/listing/generate', requireAuth, async (req, res) => {
 		}
 
 		const sku = await generateSKU();
-		void generateListing(frontImage64, backImage64, modelImage64A, modelImage64B, tagImage64, sku, info).catch((err) => {
-			console.error('[POST /api/listing/generate] Background listing generation failed:', err);
+		await updateListingState(sku, 0, 'Queued for generation');
+		void enqueueListingGeneration(async () => {
+			await generateListing(frontImage64, backImage64, modelImage64A, modelImage64B, tagImage64, sku, info);
 		});
 
 		return res.json({

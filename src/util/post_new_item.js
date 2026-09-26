@@ -73,7 +73,7 @@ async function generateListing(frontImage64, backImage64, modelImage64A, modelIm
     let result = null;
 
     try {
-        db.updateListingState(sku, 1, 'N/A');
+        await db.updateListingState(sku, 1, 'N/A');
         const normalizedInfo = {
             ...(info || {}),
             features: info?.features ?? info?.aspects ?? {},
@@ -169,7 +169,7 @@ async function generateListing(frontImage64, backImage64, modelImage64A, modelIm
         }
         console.log('Tag Public URL:', tagPublicUrl);
 
-        db.updateListingState(sku, 6, 'N/A');
+        await db.updateListingState(sku, 6, 'N/A');
 
         const listingText = await generateListingText({
             imageDataFront: frontImage64,
@@ -179,7 +179,7 @@ async function generateListing(frontImage64, backImage64, modelImage64A, modelIm
             extraDetails: ""
         });
 
-        db.updateListingState(sku, 7, 'N/A');
+        await db.updateListingState(sku, 7, 'N/A');
         const bin = sku.split('-')[0];
         const sn = sku.split('-')[1];
         const priceRates = await db.getPriceRates();
@@ -201,13 +201,12 @@ async function generateListing(frontImage64, backImage64, modelImage64A, modelIm
             aspects: info.features || {}
         });
 
-        const listingImages = [modelImage1Url, frontPublicUrl, backPublicUrl, modelImage2Url, tagPublicUrl]
+        const orderedImageUrls = [modelImage1Url, modelImage2Url, frontPublicUrl, backPublicUrl, tagPublicUrl]
             .filter((url) => typeof url === 'string' && url.trim() !== '');
 
-        await db.addListingImages(sku, listingImages);
+        await db.addListingImages(sku, orderedImageUrls);
 
-        const validImageUrls = [modelImage1Url, frontPublicUrl, backPublicUrl, modelImage2Url, tagPublicUrl]
-            .filter((url) => typeof url === 'string' && url.trim() !== '');
+        const validImageUrls = [...orderedImageUrls];
 
         if (!validImageUrls.length) {
             throw new Error('No valid listing images were generated for the eBay inventory item.');

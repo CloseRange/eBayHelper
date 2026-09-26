@@ -33,7 +33,24 @@ async function getAllListingSkus() {
     console.log(error);
     throw error;
   }
-  return (data || []).map((row) => row.sku).filter(Boolean);
+
+  const listingSkus = (data || []).map((row) => row?.sku).filter(Boolean);
+
+  // Include in-flight SKUs from listing_state so concurrent generate requests don't reuse an active SKU.
+  let pendingSkus = [];
+  try {
+    const { data: stateData, error: stateError } = await client
+      .from('listing_state')
+      .select('sku');
+
+    if (!stateError) {
+      pendingSkus = (stateData || []).map((row) => row?.sku).filter(Boolean);
+    }
+  } catch (stateErr) {
+    console.warn('[getAllListingSkus] Unable to read listing_state:', stateErr?.message || stateErr);
+  }
+
+  return [...new Set([...listingSkus, ...pendingSkus])];
 }
 
 async function getDashboardListings({ skuQuery = '', state = null } = {}) {

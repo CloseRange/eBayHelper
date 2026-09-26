@@ -475,6 +475,8 @@
 
         categoryNext?.addEventListener('click', () => {
           if (!hiddenInput.value) return;
+          sessionStorage.removeItem('listing-draft');
+          clearStoredPhotos();
           window.location.href = `/create-listing?category=${encodeURIComponent(hiddenInput.value)}`;
         });
 
@@ -512,6 +514,11 @@
       const photosNext = document.getElementById('photos-next');
       const photoSlotKeys = ['front', 'back', 'model1', 'model2', 'tag'];
       const getPhotoStorageKey = (photoKey) => `listing-photo-${photoKey}`;
+      const clearStoredPhotos = () => {
+        photoSlotKeys.forEach((photoKey) => {
+          sessionStorage.removeItem(getPhotoStorageKey(photoKey));
+        });
+      };
       const syncPhotosNext = () => {
         if (!photosNext) return;
         const frontReady = !!sessionStorage.getItem(getPhotoStorageKey('front'));
@@ -586,6 +593,7 @@
         const category = url.searchParams.get('category');
         if (!category) {
           sessionStorage.removeItem('listing-draft');
+          clearStoredPhotos();
         }
       };
 
