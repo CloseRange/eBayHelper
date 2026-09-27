@@ -2237,72 +2237,89 @@ ${condition || "Not provided"}
 
 EXTRA DETAILS:
 ${extraDetails || "None"}
-
 TITLE RULES:
 
-- Write a strong eBay search-friendly title.
-- Prioritize important searchable details.
-- Include useful information such as:
-  - brand
-  - item type
-  - department
-  - size
-  - color
-  - style
-  - important visible graphic or design details
-- Use information from the reference image when clearly visible.
+- Write a strong, natural, eBay search-friendly title.
+- The title should read like something a real clothing reseller would write.
+- Prioritize the most useful searchable information.
+
+BRAND HANDLING:
+
+- Include the brand ONLY when it is a meaningful actual brand name.
+- Treat the following values as meaning "no usable brand":
+  - "Unbranded"
+  - "Unknown"
+  - "No Brand"
+  - "N/A"
+  - "None"
+  - blank or missing values
+- NEVER include the words "Unbranded", "Unknown", "No Brand", "N/A", or "None"
+  in the title.
+- If there is no usable brand, simply begin the title with the department,
+  gender, item type, or another strong descriptive attribute.
+- Do NOT invent a brand from logos, graphics, or styling unless the brand is
+  clearly provided in the structured features or unmistakably readable.
+
+TITLE CONTENT PRIORITY:
+
+When available and useful, prioritize approximately in this order:
+
+1. Brand, but ONLY if it is a real known brand
+2. Department / gender
+3. Item type
+4. Primary color
+5. Size
+6. Important style or fit
+7. Sleeve length or neckline when useful
+8. Pattern
+9. Distinctive graphic, print, or design feature
+
+Examples:
+
+Known brand:
+"Nike Women's Black Hoodie M Pullover Long Sleeve Logo"
+
+No brand:
+"Women's Beige Blouse M Colorblock Stripe Long Sleeve Raglan"
+
+No brand:
+"Men's Blue T-Shirt L Short Sleeve Graphic Crew Neck"
+
+No brand:
+"Women's Green Sweater S Cable Knit Long Sleeve Crew Neck"
+
+BAD:
+"Unbranded Women's Beige Blouse M Colorblock Stripe"
+
+BAD:
+"Unknown Men's Blue Shirt Large"
+
+BAD:
+"No Brand Women's Green Sweater"
+
+- Do not force every available feature into the title.
+- Prefer specific useful terms over vague adjectives.
+- Avoid repeating the same concept in different words.
+- Use standard clothing terminology.
+- Use concise wording.
+- Use information from the reference image only when clearly visible.
 - Do not invent information.
 - Do not use emojis.
 - Do not use excessive punctuation.
-- Do not use meaningless marketing words like:
+- Do not use meaningless marketing words such as:
   "WOW", "AMAZING", "MUST HAVE", "LOOK"
 - Do not claim:
   - rare
   - vintage
   - authentic
-  - collectible
-  unless explicitly provided.
-- Keep the title under 80 characters.
-
-DESCRIPTION RULES:
-
-Write a clear, professional resale listing description.
-
-Include:
-
-- what the item is
-- brand if known
-- color
-- size
-- department
-- important visible style/design details
-- relevant structured features
-- known condition information
-
-The description should sound natural, not robotic.
-
-Do not invent:
-
-- stains
-- holes
-- damage
-- measurements
-- material
-- age
-- authenticity
-- manufacturing location
-- history
-
-unless explicitly provided.
-
-Do not include:
-
-- shipping information
-- return policy
-- seller policies
-- pricing
-- contact information
-- emojis
+  - collectible (unless explicitly provided.)
+  - shipping information
+  - return policy
+  - seller policies
+  - pricing
+  - contact information
+  - emojis
+  - Keep the title under 80 characters.
 
 Return ONLY valid JSON in this exact format:
 
