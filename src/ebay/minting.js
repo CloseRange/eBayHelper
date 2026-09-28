@@ -23,6 +23,7 @@ async function beginMint(res) {
     const scopes = [
         'https://api.ebay.com/oauth/api_scope/sell.inventory',
         'https://api.ebay.com/oauth/api_scope/sell.account',
+        'https://api.ebay.com/oauth/api_scope/commerce.message'
     ];
 
     const options = { state: 'custom-state-value', prompt: 'login' };
