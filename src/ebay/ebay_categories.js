@@ -278,6 +278,93 @@ function isCacheValid(entry) {
     return age < CACHE_MAX_AGE;
 }
 
+function normalizeCategoryLabel(value) {
+    return String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, ' ');
+}
+
+function getTypeByAnyReference(ref) {
+    if (ref === undefined || ref === null) {
+        return null;
+    }
+
+    const normalized = normalizeCategoryLabel(ref);
+    if (!normalized) {
+        return null;
+    }
+
+    const entries = Object.values(types || {});
+
+    return entries.find((type) => {
+        if (!type) {
+            return false;
+        }
+
+        const typeId = String(type.id ?? '').trim();
+        const typeName = normalizeCategoryLabel(type.name);
+
+        return normalized === typeId || normalized === typeName;
+    }) || null;
+}
+
+function resolveEbayCategoryIdFromCache(ref) {
+    const cache = loadCache();
+    const normalized = normalizeCategoryLabel(ref);
+
+    if (!normalized) {
+        return null;
+    }
+
+    for (const [cacheKey, cacheEntry] of Object.entries(cache || {})) {
+        const typeName = normalizeCategoryLabel(cacheEntry?.typeName);
+        const keyMatches = normalized === String(cacheKey).trim();
+        const nameMatches = normalized === typeName;
+
+        if (!keyMatches && !nameMatches) {
+            continue;
+        }
+
+        const categoryId = String(cacheEntry?.data?.categoryId || '').trim();
+        if (/^\d+$/.test(categoryId)) {
+            return categoryId;
+        }
+    }
+
+    return null;
+}
+
+async function resolveEbayCategoryId(inputCategory, fallbackTypeRef = null) {
+    const direct = String(inputCategory || '').trim();
+    if (/^\d+$/.test(direct)) {
+        return direct;
+    }
+
+    const fromInputCache = resolveEbayCategoryIdFromCache(inputCategory);
+    if (fromInputCache) {
+        return fromInputCache;
+    }
+
+    const matchedType = getTypeByAnyReference(inputCategory) || getTypeByAnyReference(fallbackTypeRef);
+    if (!matchedType) {
+        return null;
+    }
+
+    const fromMatchedTypeCache = resolveEbayCategoryIdFromCache(matchedType.id);
+    if (fromMatchedTypeCache) {
+        return fromMatchedTypeCache;
+    }
+
+    const aspects = await getAspects(matchedType).catch(() => null);
+    const fromAspects = String(aspects?.categoryId || '').trim();
+    if (/^\d+$/.test(fromAspects)) {
+        return fromAspects;
+    }
+
+    return null;
+}
+
 
 async function findEbayCategories(query) {
     const treeId = await getCategoryTreeId();
@@ -433,5 +520,6 @@ async function getAspects(type) {
 
 module.exports = {
     types,
-    getAspects
+    getAspects,
+    resolveEbayCategoryId
 };

@@ -5,7 +5,7 @@ const EbayAuthToken = require('ebay-oauth-nodejs-client');
 const { getSupabase, isSupabaseConfigured, getDashboardListings, getPendingListings, getLogs, getSaleDetails, getPriceRates, getListingsForPriceRateCheck, savePriceRate, deletePriceRate, getListingDetailsBySku, deleteListingAndAssetsBySku, addSaleDetails, updateListingState, getListingsForEbayRepost } = require('./supabase/client');
 const { getEbayAccessToken, getEbaySignInUrl, exchangeAuthCodeForTokens, getRequestedScopes } = require('./ebay');
 const { ebaySetup, getEbayPostingStatusForSku, getActiveListings, getEbayListingDetailsForSku, updateListingPrice, postListing } = require('./ebay/ebay');
-const { types, getAspects } = require('./ebay/ebay_categories');
+const { types, getAspects, resolveEbayCategoryId } = require('./ebay/ebay_categories');
 const { generateImageModel1 } = require('./ebay/openai_image');
 const { generateSKU, generateListing } = require('./util/post_new_item');
 const { generatePrintAndDiscardSkuLabelPdf, generateSkuLabelPdf } = require('./util/sku_label_pdf');
@@ -704,6 +704,50 @@ app.post('/ebay/sync', requireAuth, async (req, res) => {
 	return beginMint(res);
 });
 
+app.post('/ebay/price-check', requireAuth, async (req, res) => {
+	const connection = await checkEbayConnection(req);
+	if (!connection.connected) {
+		return res.redirect(`/ebay?status=${encodeURIComponent(connection.message || 'Connect to eBay before running a price check.')}`);
+	}
+
+	try {
+		const result = await applyPriceRateLadder();
+		const updated = Number(result?.updatedCount || 0);
+		const checked = Number(result?.evaluatedCount || 0);
+		const status = `Price check complete. Updated ${updated} listing${updated === 1 ? '' : 's'} out of ${checked} checked.`;
+		return res.redirect(`/ebay?status=${encodeURIComponent(status)}`);
+	} catch (err) {
+		console.error('[POST /ebay/price-check] Failed:', err.message || err);
+		return res.redirect(`/ebay?status=${encodeURIComponent(err?.message || 'Unable to run price check right now.')}`);
+	}
+});
+
+app.post('/api/ebay/price-check', requireAuth, async (req, res) => {
+	const connection = await checkEbayConnection(req);
+	if (!connection.connected) {
+		return res.status(409).json({
+			ok: false,
+			error: connection.message || 'Connect to eBay before running a price check.',
+		});
+	}
+
+	try {
+		const result = await applyPriceRateLadder();
+		return res.json({
+			ok: true,
+			evaluatedCount: Number(result?.evaluatedCount || 0),
+			updatedCount: Number(result?.updatedCount || 0),
+			changedListings: Array.isArray(result?.changedListings) ? result.changedListings : [],
+		});
+	} catch (err) {
+		console.error('[POST /api/ebay/price-check] Failed:', err.message || err);
+		return res.status(500).json({
+			ok: false,
+			error: err?.message || 'Unable to run price check right now.',
+		});
+	}
+});
+
 app.get('/api/ebay/listings-for-repost', requireAuth, async (req, res) => {
 	try {
 		if (!isSupabaseConfigured()) {
@@ -741,7 +785,8 @@ app.post('/api/ebay/repost', requireAuth, async (req, res) => {
 		}
 
 		const priceValue = Number(listing.price);
-		const categoryId = Number(listing.category_id ?? 0);
+		const resolvedCategoryId = await resolveEbayCategoryId(listing.category_id);
+		const categoryId = Number(resolvedCategoryId ?? 0);
 		if (!Number.isFinite(priceValue) || priceValue <= 0) {
 			throw new Error('This listing is missing a valid price for eBay reposting.');
 		}
@@ -1207,54 +1252,65 @@ app.post('/api/generate-listing-images', requireAuth, async (req, res) => {
 });
 
 async function applyPriceRateLadder() {
-	try {
-		const rates = (await getPriceRates())
-			.filter((rate) => Number.isFinite(Number(rate.days_to_change)) && Number(rate.days_to_change) > 0)
-			.sort((a, b) => Number(a.days_to_change) - Number(b.days_to_change));
+	const rates = (await getPriceRates())
+		.filter((rate) => Number.isFinite(Number(rate.days_to_change)) && Number(rate.days_to_change) > 0)
+		.sort((a, b) => Number(a.days_to_change) - Number(b.days_to_change));
 
-		if (!rates.length) {
-			return;
-		}
-
-		const listings = await getListingsForPriceRateCheck({ state: 1 });
-		const now = Date.now();
-		const client = getSupabase();
-
-		for (const listing of listings) {
-			const sku = typeof listing?.sku === 'string' ? listing.sku.trim() : '';
-			const listingState = Number(listing?.state);
-			const price = Number(listing?.price);
-			const createdAt = listing?.created_at ? Date.parse(listing.created_at) : NaN;
-
-			if (listingState !== 1 || !sku || !Number.isFinite(price) || !Number.isFinite(createdAt)) {
-				continue;
-			}
-
-			const ageDays = Math.max(0, Math.floor((now - createdAt) / (1000 * 60 * 60 * 24)));
-			const applicableRate = [...rates]
-				.filter((rate) => Number(rate.days_to_change) <= ageDays)
-				.sort((a, b) => Number(b.days_to_change) - Number(a.days_to_change))[0];
-
-			if (!applicableRate) {
-				continue;
-			}
-
-			console.log(`[price-ladder] ${sku} age=${ageDays} days, selected threshold=${applicableRate.days_to_change} => target $${applicableRate.price}`);
-
-			const targetPrice = Number(applicableRate.price);
-			if (!Number.isFinite(targetPrice) || targetPrice < 0) {
-				continue;
-			}
-
-			if (price > targetPrice) {
-				console.log(`[price-ladder] Lowering ${sku} from $${price} to $${targetPrice} at ${ageDays} days.`);
-				await updateListingPrice(sku, targetPrice);
-				await client.from('listing').update({ price: targetPrice }).eq('sku', sku);
-			}
-		}
-	} catch (err) {
-		console.error('[applyPriceRateLadder] Failed:', err.message || err);
+	if (!rates.length) {
+		return { evaluatedCount: 0, updatedCount: 0 };
 	}
+
+	const listings = await getListingsForPriceRateCheck({ state: 1 });
+	const now = Date.now();
+	const client = getSupabase();
+	let evaluatedCount = 0;
+	let updatedCount = 0;
+	const changedListings = [];
+
+	for (const listing of listings) {
+		const sku = typeof listing?.sku === 'string' ? listing.sku.trim() : '';
+		const listingState = Number(listing?.state);
+		const price = Number(listing?.price);
+		const createdAt = listing?.created_at ? Date.parse(listing.created_at) : NaN;
+
+		if (listingState !== 1 || !sku || !Number.isFinite(price) || !Number.isFinite(createdAt)) {
+			continue;
+		}
+
+		evaluatedCount += 1;
+
+		const ageDays = Math.max(0, Math.floor((now - createdAt) / (1000 * 60 * 60 * 24)));
+		const applicableRate = [...rates]
+			.filter((rate) => Number(rate.days_to_change) <= ageDays)
+			.sort((a, b) => Number(b.days_to_change) - Number(a.days_to_change))[0];
+
+		if (!applicableRate) {
+			continue;
+		}
+
+		console.log(`[price-ladder] ${sku} age=${ageDays} days, selected threshold=${applicableRate.days_to_change} => target $${applicableRate.price}`);
+
+		const targetPrice = Number(applicableRate.price);
+		if (!Number.isFinite(targetPrice) || targetPrice < 0) {
+			continue;
+		}
+
+		if (price > targetPrice) {
+			console.log(`[price-ladder] Lowering ${sku} from $${price} to $${targetPrice} at ${ageDays} days.`);
+			await updateListingPrice(sku, targetPrice);
+			await client.from('listing').update({ price: targetPrice }).eq('sku', sku);
+			updatedCount += 1;
+			changedListings.push({
+				sku,
+				oldPrice: price,
+				newPrice: targetPrice,
+				ageDays,
+				thresholdDays: Number(applicableRate.days_to_change),
+			});
+		}
+	}
+
+	return { evaluatedCount, updatedCount, changedListings };
 }
 
 app.applyPriceRateLadder = applyPriceRateLadder;

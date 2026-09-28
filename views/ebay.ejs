@@ -34,12 +34,49 @@
           <form method="post" action="/ebay/test">
             <button type="submit" class="secondary-btn ebay-test-btn">Test Connection</button>
           </form>
+          <button type="button" class="secondary-btn ebay-price-check-btn" id="run-price-check-button" <%= !isEbayConnected ? 'disabled' : '' %>>Run Price Check</button>
           <form method="post" action="/ebay/sync">
             <button type="submit" class="primary-btn ebay-sync-btn">Sync Now</button>
           </form>
           <button type="button" class="secondary-btn ebay-repost-btn" id="repost-listing-button" <%= !isEbayConnected ? 'disabled' : '' %>>Repost Listing</button>
         </div>
       </main>
+
+      <div class="modal-backdrop" id="price-check-confirm-modal" hidden>
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="price-check-confirm-title">
+          <div class="modal-header">
+            <h3 id="price-check-confirm-title">Run price check?</h3>
+            <button type="button" class="modal-close" data-close-price-check-confirm aria-label="Close price check dialog">×</button>
+          </div>
+
+          <div class="modal-body">
+            <p>This will evaluate all active listings and lower prices based on your current price-rate thresholds.</p>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="secondary-btn" data-close-price-check-confirm>Cancel</button>
+            <button type="button" class="primary-btn" id="confirm-price-check-button">Run Price Check</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-backdrop" id="price-check-result-modal" hidden>
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="price-check-result-title">
+          <div class="modal-header">
+            <h3 id="price-check-result-title">Price check results</h3>
+            <button type="button" class="modal-close" data-close-price-check-result aria-label="Close price check results">×</button>
+          </div>
+
+          <div class="modal-body">
+            <p id="price-check-result-message">Price check results will appear here.</p>
+            <ul id="price-check-results-list" class="price-check-results-list" hidden></ul>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="primary-btn" data-close-price-check-result>Okay</button>
+          </div>
+        </div>
+      </div>
 
       <div class="modal-backdrop" id="repost-listing-modal" hidden>
         <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="repost-listing-title">
@@ -91,6 +128,12 @@
       const repostEmptyMessage = document.getElementById('repost-listing-empty');
       const confirmRepostButton = document.getElementById('confirm-repost-button');
       const repostResultMessage = document.getElementById('repost-result-message');
+      const runPriceCheckButton = document.getElementById('run-price-check-button');
+      const priceCheckConfirmModal = document.getElementById('price-check-confirm-modal');
+      const priceCheckResultModal = document.getElementById('price-check-result-modal');
+      const confirmPriceCheckButton = document.getElementById('confirm-price-check-button');
+      const priceCheckResultMessage = document.getElementById('price-check-result-message');
+      const priceCheckResultsList = document.getElementById('price-check-results-list');
 
       const openModal = (modal) => {
         if (!modal) return;
@@ -100,6 +143,12 @@
       const closeModal = (modal) => {
         if (!modal) return;
         modal.hidden = true;
+      };
+
+      const formatPrice = (value) => {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) return '$0.00';
+        return `$${numeric.toFixed(2)}`;
       };
 
       const populateRepostOptions = async () => {
@@ -152,6 +201,68 @@
         if (!repostButton.disabled) {
           await populateRepostOptions();
           openModal(repostModal);
+        }
+      });
+
+      runPriceCheckButton?.addEventListener('click', () => {
+        if (!runPriceCheckButton.disabled) {
+          openModal(priceCheckConfirmModal);
+        }
+      });
+
+      document.querySelectorAll('[data-close-price-check-confirm]').forEach((element) => {
+        element.addEventListener('click', () => closeModal(priceCheckConfirmModal));
+      });
+
+      document.querySelectorAll('[data-close-price-check-result]').forEach((element) => {
+        element.addEventListener('click', () => closeModal(priceCheckResultModal));
+      });
+
+      confirmPriceCheckButton?.addEventListener('click', async () => {
+        confirmPriceCheckButton.disabled = true;
+        confirmPriceCheckButton.textContent = 'Running...';
+
+        try {
+          const response = await fetch('/api/ebay/price-check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+          });
+
+          const payload = await response.json();
+          if (!response.ok || !payload?.ok) {
+            throw new Error(payload?.error || 'Price check failed.');
+          }
+
+          const updatedCount = Number(payload.updatedCount || 0);
+          const checkedCount = Number(payload.evaluatedCount || 0);
+          const changes = Array.isArray(payload.changedListings) ? payload.changedListings : [];
+
+          if (updatedCount > 0 && changes.length) {
+            priceCheckResultMessage.textContent = `Price check complete. Updated ${updatedCount} listing${updatedCount === 1 ? '' : 's'} out of ${checkedCount} checked.`;
+            priceCheckResultsList.innerHTML = changes
+              .map((change) => {
+                const sku = String(change?.sku || '').trim();
+                return `<li>${sku}: ${formatPrice(change?.oldPrice)} -> ${formatPrice(change?.newPrice)}</li>`;
+              })
+              .join('');
+            priceCheckResultsList.hidden = false;
+          } else {
+            priceCheckResultMessage.textContent = `Price check complete. No price changes were needed across ${checkedCount} checked listing${checkedCount === 1 ? '' : 's'}.`;
+            priceCheckResultsList.hidden = true;
+            priceCheckResultsList.innerHTML = '';
+          }
+
+          closeModal(priceCheckConfirmModal);
+          openModal(priceCheckResultModal);
+        } catch (error) {
+          priceCheckResultMessage.textContent = error.message || 'Unable to run price check right now.';
+          priceCheckResultsList.hidden = true;
+          priceCheckResultsList.innerHTML = '';
+          closeModal(priceCheckConfirmModal);
+          openModal(priceCheckResultModal);
+        } finally {
+          confirmPriceCheckButton.disabled = false;
+          confirmPriceCheckButton.textContent = 'Run Price Check';
         }
       });
 

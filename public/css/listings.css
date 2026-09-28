@@ -494,6 +494,7 @@ body.analytics-page .page-shell {
 
 .ebay-action-row .primary-btn.ebay-sync-btn:disabled,
 .ebay-action-row .secondary-btn.ebay-test-btn:disabled,
+.ebay-action-row .secondary-btn.ebay-price-check-btn:disabled,
 .ebay-action-row .secondary-btn.ebay-repost-btn:disabled {
   opacity: 0.55;
   color: inherit;
@@ -570,6 +571,20 @@ body.analytics-page .page-shell {
   margin: 0;
   color: var(--text-secondary);
   font-size: 0.88rem;
+}
+
+.price-check-results-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.price-check-results-list li {
+  color: var(--text-main);
+  line-height: 1.35;
 }
 
 .modal-actions {

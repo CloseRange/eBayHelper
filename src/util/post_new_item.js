@@ -2,6 +2,7 @@ const db = require('./../supabase/client');
 const { generateImageModel1, cleanupProductPhoto, generateListingText } = require('./../ebay/openai_image');
 const { randomUUID } = require('crypto');
 const { postListing } = require('./../ebay/ebay');
+const { resolveEbayCategoryId } = require('./../ebay/ebay_categories');
 
 async function generateSKU() {
     const skus = await db.getAllListingSkus();
@@ -80,7 +81,11 @@ async function generateListing(frontImage64, backImage64, modelImage64A, modelIm
         };
         const aspects = formatAspects(normalizedInfo.features || {});
         const id = randomUUID();
-        const ebayCategoryId = Number(normalizedInfo.categoryId ?? normalizedInfo.category);
+        const resolvedCategoryId = await resolveEbayCategoryId(
+            normalizedInfo.categoryId ?? normalizedInfo.category,
+            normalizedInfo.category
+        );
+        const ebayCategoryId = Number(resolvedCategoryId);
 
         if (!Number.isFinite(ebayCategoryId) || ebayCategoryId <= 0) {
             throw new Error('A valid numeric eBay categoryId is required before creating the offer.');
@@ -196,7 +201,7 @@ async function generateListing(frontImage64, backImage64, modelImage64A, modelIm
             bin: bin,
             sn: sn,
             sku: sku,
-            categoryId: info.category || '0000',
+            categoryId: ebayCategoryId,
             condition: 'USED_EXCELLENT',
             aspects: info.features || {}
         });
