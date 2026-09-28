@@ -40,6 +40,7 @@ async function getEbayConversations(accessToken, limit = 10, offset = 0) {
 
     if (!response.ok) {
         await response.text();
+        console.error("Failed to fetch eBay conversations:", response.status, response.statusText);
         return [];
     }
     const data = await response.json();
@@ -76,7 +77,7 @@ async function getEbayMessages(accessToken, convoId, limit = 10, offset = 0) {
 
     if (!response.ok) {
         await response.text();
-
+        console.error("Failed to fetch eBay messages:", response.status, response.statusText);
         return [];
     }
     const data = await response.json();
