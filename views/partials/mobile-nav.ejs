@@ -5,7 +5,7 @@
   const isCreate = navPath === '/create-listing' || navPath === '/listing/submitted';
   const isAnalytics = navPath === '/analytics';
   const isPending = navPath === '/pending';
-  const isMore = navPath === '/settings' || navPath === '/pending' || navPath === '/ebay';
+  const isMore = navPath === '/settings' || navPath === '/pending' || navPath === '/ebay' || navPath === '/messages';
   const canCreateListing = isEbayConnected !== false;
 %>
 
@@ -107,12 +107,12 @@
         </span>
       </div>
 
-      <div class="more-drawer-item is-disabled" aria-disabled="true">
+      <a class="more-drawer-item <%= navPath === '/messages' ? 'is-active' : '' %>" href="/messages">
         <span class="more-drawer-leading">
           <span class="more-drawer-icon"><img src="/icons/mail.svg" alt="" /></span>
           <span>Messages</span>
         </span>
-      </div>
+      </a>
 
       <a class="more-drawer-item <%= navPath === '/settings' ? 'is-active' : '' %>" href="/settings">
         <span class="more-drawer-leading">

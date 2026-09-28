@@ -5,6 +5,7 @@ const EbayAuthToken = require('ebay-oauth-nodejs-client');
 const { getSupabase, isSupabaseConfigured, getDashboardListings, getPendingListings, getLogs, getSaleDetails, getPriceRates, getListingsForPriceRateCheck, savePriceRate, deletePriceRate, getListingDetailsBySku, deleteListingAndAssetsBySku, addSaleDetails, updateListingState, getListingsForEbayRepost } = require('./supabase/client');
 const { getEbayAccessToken, getEbaySignInUrl, exchangeAuthCodeForTokens, getRequestedScopes } = require('./ebay');
 const { ebaySetup, getEbayPostingStatusForSku, getActiveListings, getEbayListingDetailsForSku, updateListingPrice, postListing } = require('./ebay/ebay');
+const { getEbayConversations, getEbayMessages } = require('./ebay/ebay_messages');
 const { types, getAspects, resolveEbayCategoryId } = require('./ebay/ebay_categories');
 const { generateImageModel1 } = require('./ebay/openai_image');
 const { generateSKU, generateListing } = require('./util/post_new_item');
@@ -653,6 +654,18 @@ app.get('/orders', requireAuth, async (req, res) => {
 	});
 });
 
+app.get('/messages', requireAuth, async (req, res) => {
+	const connection = await checkEbayConnection(req);
+
+	return res.render('messages', {
+		currentUser: req.session.user,
+		currentPath: req.path,
+		isEbayConnected: req.session.isEbayConnected,
+		connectionMessage: connection.message,
+		statusBanner: req.query?.status ? String(req.query.status) : '',
+	});
+});
+
 app.get('/setupEbay', requireAuth, async (req, res) => {
 	try {
 		return await beginMint(res);
@@ -817,6 +830,89 @@ app.post('/api/ebay/repost', requireAuth, async (req, res) => {
 		return res.status(err?.code === 'PGRST116' ? 404 : 500).json({
 			ok: false,
 			error: err.message || 'Unable to repost this listing to eBay.',
+		});
+	}
+});
+
+app.get('/api/messages/ebay/conversations', requireAuth, async (req, res) => {
+	const connection = await checkEbayConnection(req);
+	if (!connection.connected) {
+		return res.status(409).json({
+			ok: false,
+			error: connection.message || 'eBay is not connected.',
+		});
+	}
+
+	const tokenReady = await ensureEbayAccessToken(req);
+	const token = (process.env.EBAY_ACCESS_TOKEN || req.session?.ebayAccessToken || await getAccessToken() || '').trim();
+
+	if (!tokenReady || !token) {
+		return res.status(401).json({
+			ok: false,
+			error: 'eBay access token is unavailable. Please reconnect eBay.',
+		});
+	}
+
+	try {
+		const limit = Math.max(1, Math.min(50, Number(req.query?.limit) || 25));
+		const offset = Math.max(0, Number(req.query?.offset) || 0);
+		const conversations = await getEbayConversations(token, limit, offset);
+
+		return res.json({
+			ok: true,
+			conversations,
+		});
+	} catch (err) {
+		console.error('[GET /api/messages/ebay/conversations] Failed:', err.message || err);
+		return res.status(500).json({
+			ok: false,
+			error: err?.message || 'Unable to load eBay conversations right now.',
+		});
+	}
+});
+
+app.get('/api/messages/ebay/conversations/:conversationId/messages', requireAuth, async (req, res) => {
+	const conversationId = typeof req.params?.conversationId === 'string'
+		? decodeURIComponent(req.params.conversationId).trim()
+		: '';
+
+	if (!conversationId) {
+		return res.status(400).json({ ok: false, error: 'conversationId is required.' });
+	}
+
+	const connection = await checkEbayConnection(req);
+	if (!connection.connected) {
+		return res.status(409).json({
+			ok: false,
+			error: connection.message || 'eBay is not connected.',
+		});
+	}
+
+	const tokenReady = await ensureEbayAccessToken(req);
+	const token = (process.env.EBAY_ACCESS_TOKEN || req.session?.ebayAccessToken || await getAccessToken() || '').trim();
+
+	if (!tokenReady || !token) {
+		return res.status(401).json({
+			ok: false,
+			error: 'eBay access token is unavailable. Please reconnect eBay.',
+		});
+	}
+
+	try {
+		const limit = Math.max(1, Math.min(100, Number(req.query?.limit) || 50));
+		const offset = Math.max(0, Number(req.query?.offset) || 0);
+		const messages = await getEbayMessages(token, conversationId, limit, offset);
+
+		return res.json({
+			ok: true,
+			conversationId,
+			messages,
+		});
+	} catch (err) {
+		console.error('[GET /api/messages/ebay/conversations/:conversationId/messages] Failed:', err.message || err);
+		return res.status(500).json({
+			ok: false,
+			error: err?.message || 'Unable to load eBay messages right now.',
 		});
 	}
 });
