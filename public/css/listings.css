@@ -664,23 +664,15 @@ body.messages-page .page-shell {
   display: block;
 }
 
-.messages-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-  gap: 12px;
-}
-
-.conversation-list-wrap,
-.thread-wrap {
+.conversation-list-wrap {
   border: 1px solid rgba(184, 164, 227, 0.24);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.96);
   padding: 10px;
-  min-height: 360px;
+  min-height: 420px;
 }
 
-.conversation-list-header,
-.thread-header {
+.conversation-list-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -688,16 +680,9 @@ body.messages-page .page-shell {
   margin-bottom: 8px;
 }
 
-.conversation-list-header h2,
-.thread-header h2 {
+.conversation-list-header h2 {
   margin: 0;
   font-size: 0.96rem;
-}
-
-.thread-subtitle {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: 0.8rem;
 }
 
 .tiny-btn {
@@ -719,7 +704,7 @@ body.messages-page .page-shell {
   padding: 0;
   display: grid;
   gap: 8px;
-  max-height: 320px;
+  max-height: 430px;
   overflow: auto;
 }
 
@@ -752,6 +737,25 @@ body.messages-page .page-shell {
   font-size: 0.84rem;
 }
 
+.conversation-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+}
+
+.conversation-unread-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--soft-coral);
+  flex-shrink: 0;
+}
+
+.conversation-unread-dot-hidden {
+  background: transparent;
+}
+
 .conversation-top time {
   color: var(--text-muted);
   font-size: 0.74rem;
@@ -776,49 +780,6 @@ body.messages-page .page-shell {
 .thread-empty {
   color: var(--text-muted);
   font-size: 0.86rem;
-}
-
-.thread-messages {
-  display: grid;
-  gap: 8px;
-  max-height: 320px;
-  overflow: auto;
-  padding-right: 3px;
-}
-
-.thread-message {
-  border-radius: 12px;
-  padding: 9px 10px;
-  display: grid;
-  gap: 5px;
-}
-
-.thread-message.sent {
-  background: rgba(183, 141, 255, 0.18);
-}
-
-.thread-message.received {
-  background: rgba(234, 247, 241, 0.8);
-}
-
-.thread-message header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 0.78rem;
-}
-
-.thread-message time {
-  color: var(--text-muted);
-  font-size: 0.72rem;
-}
-
-.thread-message p {
-  margin: 0;
-  font-size: 0.85rem;
-  line-height: 1.35;
-  white-space: pre-wrap;
 }
 
 @media (max-width: 480px) {
@@ -855,12 +816,7 @@ body.messages-page .page-shell {
     font-size: 0.78rem;
   }
 
-  .messages-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .conversation-list-wrap,
-  .thread-wrap {
+  .conversation-list-wrap {
     min-height: 0;
   }
 }

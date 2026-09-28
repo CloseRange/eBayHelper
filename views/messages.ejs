@@ -56,27 +56,14 @@
           <% if (!isEbayConnected) { %>
             <div class="inline-message muted">eBay messages are disabled until eBay is connected and synced.</div>
           <% } else { %>
-            <div class="messages-layout" id="ebay-messages-layout">
-              <aside class="conversation-list-wrap" aria-label="eBay conversations">
-                <div class="conversation-list-header">
-                  <h2>Conversations</h2>
-                  <button type="button" class="secondary-btn tiny-btn" id="refresh-ebay-conversations">Refresh</button>
-                </div>
-                <div id="ebay-conversation-status" class="conversation-status" aria-live="polite"></div>
-                <ul id="ebay-conversation-list" class="conversation-list"></ul>
-              </aside>
-
-              <section class="thread-wrap" aria-label="Conversation thread">
-                <div class="thread-header">
-                  <h2 id="thread-title">Select a conversation</h2>
-                  <p id="thread-subtitle" class="thread-subtitle"></p>
-                </div>
-                <div id="ebay-thread-status" class="conversation-status" aria-live="polite"></div>
-                <div id="ebay-thread" class="thread-messages">
-                  <div class="thread-empty">Choose a conversation to load messages.</div>
-                </div>
-              </section>
-            </div>
+            <section class="conversation-list-wrap" aria-label="eBay conversations">
+              <div class="conversation-list-header">
+                <h2>eBay conversations</h2>
+                <button type="button" class="secondary-btn tiny-btn" id="refresh-ebay-conversations">Refresh</button>
+              </div>
+              <div id="ebay-conversation-status" class="conversation-status" aria-live="polite"></div>
+              <ul id="ebay-conversation-list" class="conversation-list"></ul>
+            </section>
           <% } %>
         </section>
 
@@ -87,9 +74,13 @@
           aria-labelledby="messages-tab-website"
           hidden
         >
-          <div class="inline-message muted">
-            Website messages are coming soon. This tab is ready for your local customer inbox integration.
-          </div>
+          <section class="conversation-list-wrap" aria-label="Website conversations">
+            <div class="conversation-list-header">
+              <h2>Website conversations</h2>
+            </div>
+            <div id="website-conversation-status" class="conversation-status" aria-live="polite"></div>
+            <ul id="website-conversation-list" class="conversation-list"></ul>
+          </section>
         </section>
       </main>
 
@@ -106,14 +97,14 @@
 
         const ebayConversationList = document.getElementById('ebay-conversation-list');
         const ebayConversationStatus = document.getElementById('ebay-conversation-status');
-        const ebayThreadStatus = document.getElementById('ebay-thread-status');
-        const ebayThread = document.getElementById('ebay-thread');
-        const threadTitle = document.getElementById('thread-title');
-        const threadSubtitle = document.getElementById('thread-subtitle');
+        const websiteConversationList = document.getElementById('website-conversation-list');
+        const websiteConversationStatus = document.getElementById('website-conversation-status');
         const refreshEbayConversationsButton = document.getElementById('refresh-ebay-conversations');
 
-        let activeConversationId = '';
+        let activeEbayConversationId = '';
+        let activeWebsiteConversationId = '';
         let ebayConversations = [];
+        let websiteConversations = [];
 
         const escapeHtml = (value) => String(value || '')
           .replace(/&/g, '&amp;')
@@ -150,64 +141,17 @@
           });
         };
 
-        const renderThreadMessages = (messages) => {
-          if (!ebayThread) {
+        const renderConversationList = (listElement, rows, activeConversationId, onSelect) => {
+          if (!listElement) {
             return;
           }
 
-          if (!Array.isArray(messages) || !messages.length) {
-            ebayThread.innerHTML = '<div class="thread-empty">No messages in this conversation yet.</div>';
+          if (!rows.length) {
+            listElement.innerHTML = '<li class="conversation-empty">No conversations found.</li>';
             return;
           }
 
-          ebayThread.innerHTML = messages.map((message) => {
-            const messageClass = message.sentByUs ? 'thread-message sent' : 'thread-message received';
-            const author = escapeHtml(message.username || (message.sentByUs ? 'You' : 'Buyer'));
-            const body = escapeHtml(message.messageText || '');
-            const dateLabel = escapeHtml(formatDateTime(message.messageDate));
-
-            return ''
-              + '<article class="' + messageClass + '">'
-              + '<header><strong>' + author + '</strong><time>' + dateLabel + '</time></header>'
-              + '<p>' + body + '</p>'
-              + '</article>';
-          }).join('');
-        };
-
-        const loadThread = async (conversationId) => {
-          if (!conversationId) {
-            return;
-          }
-
-          ebayThreadStatus.textContent = 'Loading messages...';
-
-          try {
-            const response = await fetch('/api/messages/ebay/conversations/' + encodeURIComponent(conversationId) + '/messages');
-            const payload = await response.json();
-
-            if (!response.ok || !payload?.ok) {
-              throw new Error(payload?.error || 'Unable to load messages.');
-            }
-
-            ebayThreadStatus.textContent = '';
-            renderThreadMessages(payload.messages || []);
-          } catch (error) {
-            ebayThreadStatus.textContent = error.message || 'Unable to load messages.';
-            ebayThread.innerHTML = '<div class="thread-empty">Unable to load this conversation.</div>';
-          }
-        };
-
-        const renderConversationList = () => {
-          if (!ebayConversationList) {
-            return;
-          }
-
-          if (!ebayConversations.length) {
-            ebayConversationList.innerHTML = '<li class="conversation-empty">No eBay conversations found.</li>';
-            return;
-          }
-
-          ebayConversationList.innerHTML = ebayConversations.map((conversation) => {
+          listElement.innerHTML = rows.map((conversation) => {
             const id = String(conversation.convoId || '');
             const username = escapeHtml(conversation.username || 'Unknown user');
             const sku = escapeHtml(conversation.refrenceSku || 'No SKU');
@@ -215,31 +159,49 @@
             const dateLabel = escapeHtml(formatDateTime(conversation.lastMessageDate));
             const unreadClass = conversation.lastMessageRead === false ? 'is-unread' : '';
             const activeClass = id === activeConversationId ? 'is-active' : '';
+            const unreadDot = conversation.lastMessageRead === false
+              ? '<span class="conversation-unread-dot" aria-label="Unread"></span>'
+              : '<span class="conversation-unread-dot conversation-unread-dot-hidden" aria-hidden="true"></span>';
 
             return ''
               + '<li>'
               + '<button type="button" class="conversation-item ' + unreadClass + ' ' + activeClass + '" data-conversation-id="' + escapeHtml(id) + '">'
-              + '<span class="conversation-top"><strong>' + username + '</strong><time>' + dateLabel + '</time></span>'
+              + '<span class="conversation-top">'
+              + '<strong>' + username + '</strong>'
+              + '<span class="conversation-right">'
+              + unreadDot
+              + '<time>' + dateLabel + '</time>'
+              + '</span>'
+              + '</span>'
               + '<span class="conversation-meta">SKU: ' + sku + '</span>'
               + '<span class="conversation-preview">' + preview + '</span>'
               + '</button>'
               + '</li>';
           }).join('');
 
-          ebayConversationList.querySelectorAll('[data-conversation-id]').forEach((button) => {
-            button.addEventListener('click', async () => {
+          listElement.querySelectorAll('[data-conversation-id]').forEach((button) => {
+            button.addEventListener('click', () => {
               const conversationId = String(button.getAttribute('data-conversation-id') || '').trim();
               if (!conversationId) {
                 return;
               }
 
-              activeConversationId = conversationId;
-              const selected = ebayConversations.find((row) => String(row.convoId) === conversationId);
-              threadTitle.textContent = selected?.username ? String(selected.username) : 'Conversation';
-              threadSubtitle.textContent = selected?.refrenceSku ? ('SKU: ' + selected.refrenceSku) : '';
-              renderConversationList();
-              await loadThread(conversationId);
+              onSelect(conversationId);
             });
+          });
+        };
+
+        const renderEbayConversations = () => {
+          renderConversationList(ebayConversationList, ebayConversations, activeEbayConversationId, (conversationId) => {
+            activeEbayConversationId = conversationId;
+            renderEbayConversations();
+          });
+        };
+
+        const renderWebsiteConversations = () => {
+          renderConversationList(websiteConversationList, websiteConversations, activeWebsiteConversationId, (conversationId) => {
+            activeWebsiteConversationId = conversationId;
+            renderWebsiteConversations();
           });
         };
 
@@ -249,9 +211,6 @@
           }
 
           ebayConversationStatus.textContent = 'Loading conversations...';
-          if (ebayThreadStatus) {
-            ebayThreadStatus.textContent = '';
-          }
 
           try {
             const response = await fetch('/api/messages/ebay/conversations');
@@ -263,18 +222,24 @@
 
             ebayConversations = Array.isArray(payload.conversations) ? payload.conversations : [];
             ebayConversationStatus.textContent = '';
-            activeConversationId = '';
-            threadTitle.textContent = 'Select a conversation';
-            threadSubtitle.textContent = '';
-            if (ebayThread) {
-              ebayThread.innerHTML = '<div class="thread-empty">Choose a conversation to load messages.</div>';
-            }
-            renderConversationList();
+            activeEbayConversationId = '';
+            renderEbayConversations();
           } catch (error) {
             ebayConversations = [];
             ebayConversationStatus.textContent = error.message || 'Unable to load conversations.';
-            renderConversationList();
+            renderEbayConversations();
           }
+        };
+
+        const loadWebsiteConversations = () => {
+          websiteConversations = [];
+          activeWebsiteConversationId = '';
+
+          if (websiteConversationStatus) {
+            websiteConversationStatus.textContent = 'Website inbox will appear here when local website messaging is connected.';
+          }
+
+          renderWebsiteConversations();
         };
 
         tabs.forEach((tab) => {
@@ -299,6 +264,8 @@
         } else {
           setActiveTab('website');
         }
+
+        loadWebsiteConversations();
       })();
     </script>
   </body>
