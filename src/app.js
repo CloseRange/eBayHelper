@@ -2,9 +2,9 @@ const express = require('express');
 const path = require('path');
 const session = require('express-session');
 const EbayAuthToken = require('ebay-oauth-nodejs-client');
-const { getSupabase, isSupabaseConfigured, getDashboardListings, getPendingListings, getLogs, getSaleDetails, getPriceRates, getListingsForPriceRateCheck, savePriceRate, deletePriceRate, getListingDetailsBySku, deleteListingAndAssetsBySku, addSaleDetails, updateListingState } = require('./supabase/client');
+const { getSupabase, isSupabaseConfigured, getDashboardListings, getPendingListings, getLogs, getSaleDetails, getPriceRates, getListingsForPriceRateCheck, savePriceRate, deletePriceRate, getListingDetailsBySku, deleteListingAndAssetsBySku, addSaleDetails, updateListingState, getListingsForEbayRepost } = require('./supabase/client');
 const { getEbayAccessToken, getEbaySignInUrl, exchangeAuthCodeForTokens, getRequestedScopes } = require('./ebay');
-const { ebaySetup, getEbayPostingStatusForSku, getActiveListings, getEbayListingDetailsForSku, updateListingPrice } = require('./ebay/ebay');
+const { ebaySetup, getEbayPostingStatusForSku, getActiveListings, getEbayListingDetailsForSku, updateListingPrice, postListing } = require('./ebay/ebay');
 const { types, getAspects } = require('./ebay/ebay_categories');
 const { generateImageModel1 } = require('./ebay/openai_image');
 const { generateSKU, generateListing } = require('./util/post_new_item');
@@ -702,6 +702,78 @@ app.post('/ebay/test', requireAuth, async (req, res) => {
 
 app.post('/ebay/sync', requireAuth, async (req, res) => {
 	return beginMint(res);
+});
+
+app.get('/api/ebay/listings-for-repost', requireAuth, async (req, res) => {
+	try {
+		if (!isSupabaseConfigured()) {
+			return res.status(500).json({ ok: false, error: 'Database is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY.' });
+		}
+
+		const listings = await getListingsForEbayRepost();
+		return res.json({ ok: true, listings });
+	} catch (err) {
+		console.error('[GET /api/ebay/listings-for-repost] Failed:', err.message || err);
+		return res.status(500).json({ ok: false, error: err.message || 'Unable to load listings.' });
+	}
+});
+
+app.post('/api/ebay/repost', requireAuth, async (req, res) => {
+	const sku = typeof req.body?.sku === 'string' ? req.body.sku.trim() : '';
+	if (!sku) {
+		return res.status(400).json({ ok: false, error: 'SKU is required.' });
+	}
+
+	try {
+		if (!isSupabaseConfigured()) {
+			return res.status(500).json({ ok: false, error: 'Database is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY.' });
+		}
+
+		const listingData = await getListingDetailsBySku(sku);
+		const listing = listingData?.listing || null;
+		if (!listing) {
+			throw Object.assign(new Error('Listing not found for this SKU.'), { code: 'PGRST116' });
+		}
+
+		const imageUrls = Array.isArray(listingData?.images) ? listingData.images.filter(Boolean) : [];
+		if (!imageUrls.length) {
+			throw new Error('This listing has no images to repost to eBay.');
+		}
+
+		const priceValue = Number(listing.price);
+		const categoryId = Number(listing.category_id ?? 0);
+		if (!Number.isFinite(priceValue) || priceValue <= 0) {
+			throw new Error('This listing is missing a valid price for eBay reposting.');
+		}
+		if (!Number.isFinite(categoryId) || categoryId <= 0) {
+			throw new Error('This listing is missing a valid eBay category for reposting.');
+		}
+
+		const payload = {
+			price: priceValue,
+			title: typeof listing.title === 'string' ? listing.title : `Pre-owned item`,
+			description: typeof listing.description === 'string' ? listing.description : 'Pre-owned item in good condition.',
+			sku,
+			categoryId,
+			condition: typeof listing.condition === 'string' ? listing.condition : 'PRE_OWNED_EXCELLENT',
+			imageUrls,
+			aspects: listing.aspects || {},
+		};
+
+		const result = await postListing(payload);
+		return res.json({
+			ok: true,
+			sku,
+			listingId: result?.listingId || null,
+			message: 'Listing reposted to eBay successfully.',
+		});
+	} catch (err) {
+		console.error('[POST /api/ebay/repost] Failed:', err.message || err);
+		return res.status(err?.code === 'PGRST116' ? 404 : 500).json({
+			ok: false,
+			error: err.message || 'Unable to repost this listing to eBay.',
+		});
+	}
 });
 
 app.get('/create-listing', requireAuth, async (req, res) => {

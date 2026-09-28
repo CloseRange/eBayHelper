@@ -53,6 +53,61 @@ async function getAllListingSkus() {
   return [...new Set([...listingSkus, ...pendingSkus])];
 }
 
+async function getListingsForEbayRepost() {
+  const client = getSupabase();
+  const { data, error } = await client
+    .from('listing')
+    .select('sku, title, price, description, category_id, condition, aspects, created_at')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  const rows = Array.isArray(data) ? data : [];
+  if (!rows.length) {
+    return [];
+  }
+
+  const skus = rows.map((row) => row?.sku).filter(Boolean);
+  const { data: imageRows, error: imageError } = await client
+    .from('listing_image')
+    .select('sku, image_url, image_order')
+    .in('sku', skus)
+    .order('image_order', { ascending: true });
+
+  if (imageError) {
+    throw imageError;
+  }
+
+  const imagesBySku = new Map();
+  for (const row of imageRows || []) {
+    const sku = String(row?.sku || '').trim();
+    const imageUrl = String(row?.image_url || '').trim();
+
+    if (!sku || !imageUrl) {
+      continue;
+    }
+
+    if (!imagesBySku.has(sku)) {
+      imagesBySku.set(sku, []);
+    }
+
+    imagesBySku.get(sku).push(imageUrl);
+  }
+
+  return rows.map((row) => ({
+    sku: row?.sku || null,
+    title: row?.title || 'Untitled listing',
+    price: row?.price ?? null,
+    description: row?.description || '',
+    categoryId: row?.category_id ?? null,
+    condition: row?.condition || 'PRE_OWNED_EXCELLENT',
+    aspects: row?.aspects || {},
+    imageUrls: imagesBySku.get(String(row?.sku || '').trim()) || [],
+  })).filter((row) => row.sku);
+}
+
 async function getDashboardListings({ skuQuery = '', state = null } = {}) {
   const client = getSupabase();
   const normalizedSkuQuery = typeof skuQuery === 'string' ? skuQuery.trim() : '';
@@ -938,6 +993,7 @@ module.exports = {
   getSupabase,
   isSupabaseConfigured,
   getAllListingSkus,
+  getListingsForEbayRepost,
   getDashboardListings,
   getPendingListings,
   getLogs,

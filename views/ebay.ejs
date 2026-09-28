@@ -37,10 +37,167 @@
           <form method="post" action="/ebay/sync">
             <button type="submit" class="primary-btn ebay-sync-btn">Sync Now</button>
           </form>
+          <button type="button" class="secondary-btn ebay-repost-btn" id="repost-listing-button" <%= !isEbayConnected ? 'disabled' : '' %>>Repost Listing</button>
         </div>
       </main>
 
+      <div class="modal-backdrop" id="repost-listing-modal" hidden>
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="repost-listing-title">
+          <div class="modal-header">
+            <h3 id="repost-listing-title">Repost listing to eBay</h3>
+            <button type="button" class="modal-close" data-close-repost-modal aria-label="Close repost dialog">×</button>
+          </div>
+
+          <div class="modal-body">
+            <label for="repost-listing-select" class="modal-label">Choose a listing</label>
+            <select id="repost-listing-select" class="repost-listing-select">
+              <option value="">Loading listings...</option>
+            </select>
+            <p class="modal-note" id="repost-listing-empty" hidden>No listings are available to repost.</p>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="secondary-btn" data-close-repost-modal>Cancel</button>
+            <button type="button" class="primary-btn" id="confirm-repost-button">Repost</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-backdrop" id="repost-result-modal" hidden>
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="repost-result-title">
+          <div class="modal-header">
+            <h3 id="repost-result-title">Repost result</h3>
+            <button type="button" class="modal-close" data-close-result-modal aria-label="Close result dialog">×</button>
+          </div>
+
+          <div class="modal-body">
+            <p id="repost-result-message">Your listing repost status will appear here.</p>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="primary-btn" data-close-result-modal>Okay</button>
+          </div>
+        </div>
+      </div>
+
       <%- include('partials/mobile-nav', { currentPath }) %>
     </div>
+
+    <script>
+      const repostButton = document.getElementById('repost-listing-button');
+      const repostModal = document.getElementById('repost-listing-modal');
+      const repostResultModal = document.getElementById('repost-result-modal');
+      const repostSelect = document.getElementById('repost-listing-select');
+      const repostEmptyMessage = document.getElementById('repost-listing-empty');
+      const confirmRepostButton = document.getElementById('confirm-repost-button');
+      const repostResultMessage = document.getElementById('repost-result-message');
+
+      const openModal = (modal) => {
+        if (!modal) return;
+        modal.hidden = false;
+      };
+
+      const closeModal = (modal) => {
+        if (!modal) return;
+        modal.hidden = true;
+      };
+
+      const populateRepostOptions = async () => {
+        if (!repostSelect) return;
+
+        try {
+          const response = await fetch('/api/ebay/listings-for-repost');
+          const payload = await response.json();
+
+          if (!response.ok || !payload.ok) {
+            throw new Error(payload?.error || 'Unable to load listings.');
+          }
+
+          const listings = Array.isArray(payload.listings) ? payload.listings : [];
+          repostSelect.innerHTML = '';
+
+          if (!listings.length) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'No listings available';
+            repostSelect.appendChild(option);
+            repostEmptyMessage.hidden = false;
+            confirmRepostButton.disabled = true;
+            return;
+          }
+
+          repostEmptyMessage.hidden = true;
+          confirmRepostButton.disabled = false;
+
+          const placeholder = document.createElement('option');
+          placeholder.value = '';
+          placeholder.textContent = 'Select a listing';
+          repostSelect.appendChild(placeholder);
+
+          listings.forEach((listing) => {
+            const option = document.createElement('option');
+            option.value = listing.sku;
+            option.textContent = `${listing.title || 'Untitled listing'} (${listing.sku})`;
+            repostSelect.appendChild(option);
+          });
+        } catch (error) {
+          console.error('[repost] Failed to load listings:', error);
+          repostSelect.innerHTML = '<option value="">Unable to load listings</option>';
+          repostEmptyMessage.hidden = false;
+          confirmRepostButton.disabled = true;
+        }
+      };
+
+      repostButton?.addEventListener('click', async () => {
+        if (!repostButton.disabled) {
+          await populateRepostOptions();
+          openModal(repostModal);
+        }
+      });
+
+      document.querySelectorAll('[data-close-repost-modal]').forEach((element) => {
+        element.addEventListener('click', () => closeModal(repostModal));
+      });
+
+      document.querySelectorAll('[data-close-result-modal]').forEach((element) => {
+        element.addEventListener('click', () => closeModal(repostResultModal));
+      });
+
+      confirmRepostButton?.addEventListener('click', async () => {
+        const sku = repostSelect?.value;
+        if (!sku) {
+          repostResultMessage.textContent = 'Please select a listing to repost.';
+          openModal(repostResultModal);
+          return;
+        }
+
+        confirmRepostButton.disabled = true;
+        confirmRepostButton.textContent = 'Reposting...';
+
+        try {
+          const response = await fetch('/api/ebay/repost', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sku }),
+          });
+
+          const payload = await response.json();
+          if (!response.ok || !payload?.ok) {
+            throw new Error(payload?.error || 'Repost failed.');
+          }
+
+          closeModal(repostModal);
+          repostResultMessage.textContent = payload.message || `Listing ${sku} was reposted to eBay.`;
+          openModal(repostResultModal);
+        } catch (error) {
+          closeModal(repostModal);
+          repostResultMessage.textContent = error.message || 'Unable to repost this listing to eBay.';
+          openModal(repostResultModal);
+        } finally {
+          confirmRepostButton.disabled = false;
+          confirmRepostButton.textContent = 'Repost';
+        }
+      });
+    </script>
   </body>
 </html>
