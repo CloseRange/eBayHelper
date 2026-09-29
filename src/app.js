@@ -7,6 +7,7 @@ const { getEbayAccessToken, getEbaySignInUrl, exchangeAuthCodeForTokens, getRequ
 const { ebaySetup, getEbayPostingStatusForSku, getActiveListings, getEbayListingDetailsForSku, updateListingPrice, postListing } = require('./ebay/ebay');
 const { getEbayConversations, getEbayMessages } = require('./ebay/ebay_messages');
 const { types, getAspects, resolveEbayCategoryId } = require('./ebay/ebay_categories');
+const departmentCatalog = require('../categories_major.json');
 const { generateImageModel1 } = require('./ebay/openai_image');
 const { generateSKU, generateListing } = require('./util/post_new_item');
 const { generatePrintAndDiscardSkuLabelPdf, generateSkuLabelPdf } = require('./util/sku_label_pdf');
@@ -177,23 +178,198 @@ async function getFirstListingImagesBySku(skus = []) {
 	return firstImagesBySku;
 }
 
-async function buildDashboardListingCards(stateFilter) {
+function getDepartmentFromTitle(title = '') {
+	const text = String(title || '').toLowerCase();
+
+	const explicitMens = ['men', 'mens', 'male', 'boy', 'boys'];
+	const explicitWomens = ['women', 'womens', 'female', 'girl', 'girls'];
+	const explicitAccessories = ['hat', 'cap', 'belt', 'bag', 'purse', 'wallet', 'watch', 'jewelry', 'necklace', 'bracelet', 'earrings', 'gloves', 'scarf', 'sunglasses', 'backpack', 'handbag', 'sock', 'socks'];
+
+	const genericMens = ['jacket', 'jeans', 'pants', 'shorts', 'shirt', 'tee', 't-shirt', 'hoodie', 'sweatshirt', 'sneaker'];
+	const genericWomens = ['dress', 'skirt', 'blouse', 'top', 'leggings', 'sweater', 'cardigan', 'jumpsuit', 'heels'];
+
+	if (explicitWomens.some((keyword) => text.includes(keyword))) {
+		return 'womens';
+	}
+	if (explicitMens.some((keyword) => text.includes(keyword))) {
+		return 'mens';
+	}
+	if (explicitAccessories.some((keyword) => text.includes(keyword))) {
+		return 'accessories';
+	}
+	if (genericWomens.some((keyword) => text.includes(keyword))) {
+		return 'womens';
+	}
+	if (genericMens.some((keyword) => text.includes(keyword))) {
+		return 'mens';
+	}
+
+	return 'neutral';
+}
+
+function normalizeDepartmentKey(value = '') {
+	const normalized = String(value || '').trim().toLowerCase().replace(/_/g, '-').replace(/\s+/g, '-');
+	if (!normalized) {
+		return null;
+	}
+
+	const aliases = {
+		women: 'womens',
+		womens: 'womens',
+		female: 'womens',
+		girl: 'womens',
+		girls: 'womens',
+		men: 'mens',
+		mens: 'mens',
+		male: 'mens',
+		boy: 'mens',
+		boys: 'mens',
+		accessory: 'accessories',
+		accessories: 'accessories',
+		'new-arrival': 'new-arrivals',
+		'new-arrivals': 'new-arrivals',
+		'new-arrivals-2': 'new-arrivals',
+	};
+
+	return aliases[normalized] || null;
+}
+
+function getDepartmentLabel(departmentKey = '') {
+	const key = normalizeDepartmentKey(departmentKey);
+
+	if (key === 'womens') {
+		return 'Womens';
+	}
+	if (key === 'mens') {
+		return 'Men';
+	}
+	if (key === 'accessories') {
+		return 'Accessories';
+	}
+	if (key === 'new-arrivals') {
+		return 'New Arrivals';
+	}
+	return 'Listings';
+}
+
+function getDepartmentHeroImage(departmentKey = '') {
+	const key = normalizeDepartmentKey(departmentKey);
+
+	if (key === 'womens') {
+		return '/images/womens.png';
+	}
+	if (key === 'mens') {
+		return '/images/mens.png';
+	}
+	if (key === 'accessories') {
+		return '/images/accessories.png';
+	}
+	if (key === 'new-arrivals') {
+		return '/images/new-arrivals.png';
+	}
+	return '/images/womens.png';
+}
+
+function normalizeCategoryValue(value = '') {
+	return String(value || '')
+		.trim()
+		.toLowerCase()
+		.replace(/\s+/g, ' ');
+}
+
+function getDepartmentCategoryNames(departmentKey = '') {
+	const normalizedDepartment = normalizeDepartmentKey(departmentKey);
+	if (!normalizedDepartment) {
+		return [];
+	}
+
+	const keyMap = {
+		womens: 'Women',
+		mens: 'Men',
+		accessories: 'Accessories',
+	};
+
+	const sectionName = keyMap[normalizedDepartment];
+	if (!sectionName || !departmentCatalog || !departmentCatalog[sectionName]) {
+		return [];
+	}
+
+	return Array.isArray(departmentCatalog[sectionName]) ? departmentCatalog[sectionName] : [];
+}
+
+function getDepartmentCategoryMatches(departmentKey = '') {
+	const names = getDepartmentCategoryNames(departmentKey);
+	if (!names.length) {
+		return [];
+	}
+
+	return [...new Set(
+		names
+			.map((value) => String(value ?? '').trim())
+			.filter((value) => value.length > 0)
+	)];
+}
+
+function filterRowsByDepartment(rows = [], requestedDepartment = null, departmentCategoryIds = []) {
+	const normalizedDepartment = normalizeDepartmentKey(requestedDepartment);
+	if (!normalizedDepartment) {
+		return rows;
+	}
+
+	if (normalizedDepartment === 'new-arrivals') {
+		return [...rows].slice(0, 20);
+	}
+
+	if (Array.isArray(departmentCategoryIds) && departmentCategoryIds.length) {
+		const normalizedDepartmentNames = new Set(
+			departmentCategoryIds
+				.map((value) => normalizeCategoryValue(value))
+				.filter(Boolean)
+		);
+
+		return rows.filter((row) => {
+			const rowCategory = String(row?.category_id ?? '').trim();
+			if (!rowCategory) {
+				return false;
+			}
+			if (normalizedDepartmentNames.has(normalizeCategoryValue(rowCategory))) {
+				return true;
+			}
+			const numericRowCategory = Number(rowCategory);
+			return Number.isFinite(numericRowCategory) && departmentCategoryIds.includes(String(numericRowCategory));
+		});
+	}
+
+	return rows.filter((row) => getDepartmentFromTitle(row.title || '') === normalizedDepartment);
+}
+
+async function buildDashboardListingCards(stateFilter, requestedDepartment = null) {
 	if (!isSupabaseConfigured()) {
 		throw new Error('Database is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY.');
 	}
 
-	const rows = await getDashboardListings({ state: stateFilter });
-	const imageMap = await getFirstListingImagesBySku(rows.map((row) => row?.sku));
+	const normalizedDepartment = normalizeDepartmentKey(requestedDepartment);
+	const departmentCategoryIds = normalizedDepartment && normalizedDepartment !== 'new-arrivals'
+		? getDepartmentCategoryMatches(normalizedDepartment)
+		: [];
+	const rows = await getDashboardListings({
+		state: stateFilter,
+		categoryIds: departmentCategoryIds,
+		limit: normalizedDepartment === 'new-arrivals' ? 20 : null,
+	});
+	const filteredRows = filterRowsByDepartment(rows, requestedDepartment, departmentCategoryIds);
+	const imageMap = await getFirstListingImagesBySku(filteredRows.map((row) => row?.sku));
 	const now = Date.now();
 	const msPerDay = 1000 * 60 * 60 * 24;
 
-	return rows.map((row) => {
+	return filteredRows.map((row) => {
 		const createdAtValue = row.created_at ? Date.parse(row.created_at) : NaN;
 		const daysActive = Number.isFinite(createdAtValue)
 			? Math.max(0, Math.floor((now - createdAtValue) / msPerDay))
 			: null;
 
 		const parsedPrice = row.price === null || row.price === undefined ? NaN : Number(row.price);
+		const department = getDepartmentFromTitle(row.title || '');
 
 		return {
 			title: row.title || 'Untitled listing',
@@ -201,6 +377,7 @@ async function buildDashboardListingCards(stateFilter) {
 			imageUrl: imageMap.get(String(row.sku || '').trim()) || '',
 			priceDisplay: Number.isFinite(parsedPrice) ? `$${parsedPrice.toFixed(2)}` : '—',
 			ageDisplay: daysActive === null ? '—' : String(daysActive),
+			department,
 		};
 	});
 }
@@ -587,15 +764,21 @@ app.post('/settings/prices/:id/delete', requireAuth, async (req, res) => {
 app.get('/dashboard', requireAuth, async (req, res) => {
 	const requestedState = Number(req.query?.state);
 	const stateFilter = Number.isFinite(requestedState) ? requestedState : 1;
-	const pageHeading = stateFilter === 0 ? 'Pending' : stateFilter === 4 ? 'Archived' : 'Listings';
+	const selectedDepartment = normalizeDepartmentKey(req.query?.department);
+	const selectedDepartmentLabel = selectedDepartment ? getDepartmentLabel(selectedDepartment) : '';
+	const pageHeading = selectedDepartment
+		? selectedDepartmentLabel
+		: (stateFilter === 0 ? 'Pending' : stateFilter === 4 ? 'Archived' : 'Listings');
 
 	return res.render('dashboard', {
 		listings: [],
 		pageHeading,
 		stateFilter,
+		selectedDepartment,
+		selectedDepartmentLabel,
 		skuQuery: '',
 		error: null,
-		ebayConnectionError: req.session.isEbayConnected === false ? 'Not connected to eBay API' : null,
+		ebayConnectionError: null,
 		currentUser: req.session.user,
 	});
 });
@@ -603,13 +786,15 @@ app.get('/dashboard', requireAuth, async (req, res) => {
 app.get('/api/dashboard-listings', requireAuth, async (req, res) => {
 	const requestedState = Number(req.query?.state);
 	const stateFilter = Number.isFinite(requestedState) ? requestedState : 1;
+	const selectedDepartment = normalizeDepartmentKey(req.query?.department);
 
 	try {
-		const listings = await buildDashboardListingCards(stateFilter);
+		const listings = await buildDashboardListingCards(stateFilter, selectedDepartment);
 		return res.json({
 			ok: true,
 			listings,
 			state: stateFilter,
+			department: selectedDepartment || null,
 		});
 	} catch (err) {
 		console.error('[GET /api/dashboard-listings] Failed:', err.message || err);

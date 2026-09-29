@@ -108,15 +108,22 @@ async function getListingsForEbayRepost() {
   })).filter((row) => row.sku);
 }
 
-async function getDashboardListings({ skuQuery = '', state = null } = {}) {
+async function getDashboardListings({ skuQuery = '', state = null, categoryIds = [], limit = null } = {}) {
   const client = getSupabase();
   const normalizedSkuQuery = typeof skuQuery === 'string' ? skuQuery.trim() : '';
   const parsedState = state === null || state === undefined || state === '' ? null : Number(state);
   const hasStateFilter = Number.isFinite(parsedState);
+  const normalizedCategoryIds = Array.isArray(categoryIds)
+    ? [...new Set(categoryIds
+      .map((value) => String(value ?? '').trim())
+      .filter((value) => value.length > 0))]
+    : [];
+  const hasCategoryFilter = normalizedCategoryIds.length > 0;
+  const normalizedLimit = Number.isInteger(limit) && limit > 0 ? limit : null;
 
   let query = client
     .from('listing')
-    .select('title, price, sku, created_at')
+    .select('title, price, sku, created_at, category_id')
     .order('created_at', { ascending: false });
 
   if (hasStateFilter) {
@@ -125,6 +132,14 @@ async function getDashboardListings({ skuQuery = '', state = null } = {}) {
 
   if (normalizedSkuQuery) {
     query = query.ilike('sku', `%${normalizedSkuQuery}%`);
+  }
+
+  if (hasCategoryFilter) {
+    query = query.in('category_id', normalizedCategoryIds);
+  }
+
+  if (normalizedLimit) {
+    query = query.limit(normalizedLimit);
   }
 
   const { data, error } = await query;

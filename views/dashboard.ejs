@@ -12,22 +12,80 @@
         <img src="/res/logo-header.png" alt="Nine Lives Vintage" class="top-logo-image" />
       </header>
 
-      <form method="get" action="/dashboard" class="search-form" aria-label="Search listings by SKU" id="sku-search-form">
-        <label for="sku-search" class="search-label">Search by SKU</label>
-        <div class="search-controls">
-          <input
-            id="sku-search"
-            name="sku"
-            type="search"
-            value="<%= skuQuery || '' %>"
-            placeholder="Enter SKU"
-            autocomplete="off"
-          />
-          <button type="button" class="scan-search-button" id="scan-sku-button" aria-label="Scan barcode" title="Scan barcode">
-            <img src="/icons/scan-barcode.svg" alt="" />
-          </button>
-        </div>
-      </form>
+      <% const hasSelectedDepartment = !!selectedDepartment; %>
+
+      <% if (!hasSelectedDepartment) { %>
+        <form method="get" action="/dashboard" class="search-form" aria-label="Search listings by SKU" id="sku-search-form">
+          <div class="search-controls">
+            <input
+              id="sku-search"
+              name="sku"
+              type="search"
+              value="<%= skuQuery || '' %>"
+              placeholder="Enter SKU"
+              autocomplete="off"
+            />
+            <button type="button" class="scan-search-button" id="scan-sku-button" aria-label="Scan barcode" title="Scan barcode">
+              <img src="/icons/scan-barcode.svg" alt="" />
+            </button>
+          </div>
+        </form>
+      <% } %>
+      <% const displayTitle = selectedDepartment ? selectedDepartmentLabel : 'Listings'; %>
+
+      <% if (hasSelectedDepartment) { %>
+        <section class="department-banner" aria-label="<%= displayTitle %> department">
+          <button type="button" class="department-back-button" id="department-back-button" aria-label="Back to all listings">← Back</button>
+          <img src="<%= '/images/' + (selectedDepartment === 'womens' ? 'womens' : selectedDepartment === 'mens' ? 'mens' : selectedDepartment === 'accessories' ? 'accessories' : 'new-arrivals') + '.png' %>" alt="<%= displayTitle %>" />
+          <div class="department-banner-overlay"></div>
+          <div class="department-banner-copy">
+            <span class="department-banner-label">Department</span>
+            <h2><%= displayTitle %></h2>
+          </div>
+        </section>
+      <% } else { %>
+        <section class="department-gallery" aria-label="Major departments">
+          <article class="department-card" data-department="womens" aria-label="Womens department">
+            <img src="/images/womens.png" alt="Womens" />
+            <div class="department-card-copy">
+              <span class="department-name">Womens</span>
+            </div>
+            <div class="department-arrow-badge" aria-hidden="true">
+              <img src="/icons/arrow-big-right.svg" alt="" />
+            </div>
+          </article>
+
+          <article class="department-card" data-department="mens" aria-label="Men department">
+            <img src="/images/mens.png" alt="Men" />
+            <div class="department-card-copy">
+              <span class="department-name">Men</span>
+            </div>
+            <div class="department-arrow-badge" aria-hidden="true">
+              <img src="/icons/arrow-big-right.svg" alt="" />
+            </div>
+          </article>
+
+          <article class="department-card" data-department="accessories" aria-label="Accessories department">
+            <img src="/images/accessories.png" alt="Accessories" />
+            <div class="department-card-copy">
+              <span class="department-name">Accessories</span>
+            </div>
+            <div class="department-arrow-badge" aria-hidden="true">
+              <img src="/icons/arrow-big-right.svg" alt="" />
+            </div>
+          </article>
+
+          <article class="department-card" data-department="new-arrivals" aria-label="New Arrivals department">
+            <img src="/images/new-arrivals.png" alt="New Arrivals" />
+            <div class="department-card-copy">
+              <span class="department-name">New Arrivals</span>
+            </div>
+            <div class="department-arrow-badge" aria-hidden="true">
+              <img src="/icons/arrow-big-right.svg" alt="" />
+            </div>
+          </article>
+        </section>
+      <% } %>
 
       <section class="scanner-panel" id="scanner-panel" hidden>
         <video id="scanner-video" autoplay playsinline muted></video>
@@ -128,6 +186,9 @@
           const grid = document.getElementById('listing-card-grid');
           const emptyState = document.getElementById('dashboard-empty-state');
           const loadErrorBanner = document.getElementById('dashboard-load-error');
+          const selectedDepartment = '<%= selectedDepartment || '' %>' || '';
+          const departmentBackButton = document.getElementById('department-back-button');
+          const departmentCards = Array.from(document.querySelectorAll('.department-card[data-department]'));
           const modal = document.getElementById('listing-modal');
           const modalBackdrop = document.getElementById('listing-modal-backdrop');
           const closeModalButton = document.getElementById('listing-modal-close');
@@ -166,10 +227,6 @@
           let zxingReader = null;
           let zxingReaderPromise = null;
 
-          if (!searchInput) {
-            return;
-          }
-
           const escapeHtml = (value) => String(value || '')
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
@@ -184,11 +241,60 @@
             emptyRow = document.getElementById('search-empty-row');
           };
 
+          const getDepartmentFromTitle = (title = '') => {
+            const text = String(title || '').toLowerCase();
+
+            const explicitMens = ['men', 'mens', 'male', 'boy', 'boys'];
+            const explicitWomens = ['women', 'womens', 'female', 'girl', 'girls'];
+            const explicitAccessories = ['hat', 'cap', 'belt', 'bag', 'purse', 'wallet', 'watch', 'jewelry', 'necklace', 'bracelet', 'earrings', 'gloves', 'scarf', 'sunglasses', 'backpack', 'handbag', 'sock', 'socks'];
+
+            const genericMens = ['jacket', 'jeans', 'pants', 'shorts', 'shirt', 'tee', 't-shirt', 'hoodie', 'sweatshirt', 'sneaker'];
+            const genericWomens = ['dress', 'skirt', 'blouse', 'top', 'leggings', 'sweater', 'cardigan', 'jumpsuit', 'heels'];
+
+            if (explicitWomens.some((keyword) => text.includes(keyword))) {
+              return 'womens';
+            }
+            if (explicitMens.some((keyword) => text.includes(keyword))) {
+              return 'mens';
+            }
+            if (explicitAccessories.some((keyword) => text.includes(keyword))) {
+              return 'accessories';
+            }
+            if (genericWomens.some((keyword) => text.includes(keyword))) {
+              return 'womens';
+            }
+            if (genericMens.some((keyword) => text.includes(keyword))) {
+              return 'mens';
+            }
+
+            return 'neutral';
+          };
+
+          const getDepartmentGradient = (department) => {
+            const normalized = String(department || 'neutral').toLowerCase();
+
+            if (normalized === 'mens') {
+              return 'linear-gradient(135deg, rgba(185, 225, 187, 0.95), rgba(233, 247, 234, 0.88))';
+            }
+            if (normalized === 'womens') {
+              return 'linear-gradient(135deg, rgba(210, 193, 238, 0.96), rgba(245, 238, 255, 0.9))';
+            }
+            if (normalized === 'accessories') {
+              return 'linear-gradient(135deg, rgba(246, 202, 176, 0.94), rgba(255, 239, 229, 0.9))';
+            }
+            if (normalized === 'mixed') {
+              return 'radial-gradient(circle at 20% 20%, rgba(188, 234, 181, 0.8), transparent 30%), radial-gradient(circle at 80% 18%, rgba(208, 191, 236, 0.78), transparent 30%), linear-gradient(135deg, rgba(195, 235, 200, 0.88), rgba(214, 193, 239, 0.78), rgba(246, 204, 176, 0.8))';
+            }
+            return 'linear-gradient(135deg, rgba(255,255,255,0.96), rgba(249, 245, 250, 0.88))';
+          };
+
           const createCardMarkup = (listing) => {
             const title = escapeHtml(listing && listing.title ? listing.title : 'Untitled listing');
             const sku = escapeHtml(listing && listing.sku ? listing.sku : '—');
             const priceDisplay = escapeHtml(listing && listing.priceDisplay ? listing.priceDisplay : '—');
             const imageUrl = listing && listing.imageUrl ? escapeHtml(listing.imageUrl) : '';
+            const department = String((listing && listing.department) || getDepartmentFromTitle(listing && listing.title ? listing.title : '') || 'neutral').toLowerCase();
+            const cardBackground = getDepartmentGradient(department);
 
             const imageMarkup = imageUrl
               ? '<div class="listing-card-image-wrap">'
@@ -202,7 +308,7 @@
                 + '</div>';
 
             return ''
-              + '<article class="listing-card data-row" role="button" tabindex="0" aria-label="Open details for ' + title + '" data-sku="' + sku + '">'
+              + '<article class="listing-card data-row" role="button" tabindex="0" aria-label="Open details for ' + title + '" data-sku="' + sku + '" data-department="' + department + '" style="background: ' + cardBackground + ';">'
               + imageMarkup
               + '<div class="listing-card-body">'
               + '<h3 class="listing-card-title">' + title + '</h3>'
@@ -892,12 +998,12 @@
               return;
             }
 
-            const query = searchInput.value.trim().toLowerCase();
+            const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
             let visibleCount = 0;
 
             rows.forEach((row) => {
               const sku = (row.getAttribute('data-sku') || '').toLowerCase();
-              const visible = query === '' || sku.includes(query);
+              const visible = selectedDepartment ? true : (query === '' || sku.includes(query));
               row.hidden = !visible;
               if (visible) {
                 visibleCount += 1;
@@ -915,7 +1021,12 @@
             }
 
             try {
-              const response = await fetch('/api/dashboard-listings?state=' + encodeURIComponent(stateFilter), {
+              const params = new URLSearchParams({ state: String(stateFilter) });
+              if (selectedDepartment) {
+                params.set('department', selectedDepartment);
+              }
+
+              const response = await fetch('/api/dashboard-listings?' + params.toString(), {
                 method: 'GET',
                 headers: {
                   Accept: 'application/json',
@@ -938,13 +1049,40 @@
             }
           };
 
+          if (departmentBackButton) {
+            departmentBackButton.addEventListener('click', () => {
+              window.location.href = '/dashboard?state=' + encodeURIComponent(String(stateFilter));
+            });
+          }
+
+          departmentCards.forEach((card) => {
+            const department = (card.getAttribute('data-department') || '').trim();
+            if (!department) {
+              return;
+            }
+
+            card.addEventListener('click', () => {
+              const params = new URLSearchParams({ state: String(stateFilter), department });
+              window.location.href = '/dashboard?' + params.toString();
+            });
+
+            card.addEventListener('keydown', (event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                card.click();
+              }
+            });
+          });
+
           if (form) {
             form.addEventListener('submit', (event) => {
               event.preventDefault();
             });
           }
 
-          searchInput.addEventListener('input', applyFilter);
+          if (searchInput) {
+            searchInput.addEventListener('input', applyFilter);
+          }
 
           if (scanSkuButton) {
             scanSkuButton.addEventListener('click', () => {
