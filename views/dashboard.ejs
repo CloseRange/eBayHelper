@@ -216,7 +216,8 @@
           const finalizeItemButton = document.getElementById('finalize-item-button');
           const deleteListingButton = document.getElementById('delete-listing-button');
           const moreInfoButton = document.getElementById('more-info-button');
-          const stateFilter = Number(grid && grid.dataset ? grid.dataset.stateFilter : 1) || 1;
+          const parsedStateFilter = Number(grid && grid.dataset ? grid.dataset.stateFilter : 1);
+          const stateFilter = Number.isFinite(parsedStateFilter) ? parsedStateFilter : 1;
           const isArchivedView = stateFilter === 0;
 
           if (finalizeItemButton && isArchivedView) {
