@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const session = require('express-session');
 const EbayAuthToken = require('ebay-oauth-nodejs-client');
-const { getSupabase, isSupabaseConfigured, getDashboardListings, getPendingListings, getLogs, getSaleDetails, getPriceRates, getListingsForPriceRateCheck, savePriceRate, deletePriceRate, getListingDetailsBySku, deleteListingAndAssetsBySku, addSaleDetails, updateListingState, getListingsForEbayRepost } = require('./supabase/client');
+const { getSupabase, isSupabaseConfigured, getDashboardListings, getPendingListings, getLogs, getSaleDetails, getPriceRates, getListingsForPriceRateCheck, savePriceRate, deletePriceRate, getListingDetailsBySku, deleteListingAndAssetsBySku, addSaleDetails, updateListingState, updateListingTableState, getListingsForEbayRepost } = require('./supabase/client');
 const { getEbayAccessToken, getEbaySignInUrl, exchangeAuthCodeForTokens, getRequestedScopes } = require('./ebay');
 const { ebaySetup, getEbayPostingStatusForSku, getActiveListings, getEbayListingDetailsForSku, updateListingPrice, postListing } = require('./ebay/ebay');
 const { getEbayConversations, getEbayMessages } = require('./ebay/ebay_messages');
@@ -764,11 +764,12 @@ app.post('/settings/prices/:id/delete', requireAuth, async (req, res) => {
 app.get('/dashboard', requireAuth, async (req, res) => {
 	const requestedState = Number(req.query?.state);
 	const stateFilter = Number.isFinite(requestedState) ? requestedState : 1;
-	const selectedDepartment = normalizeDepartmentKey(req.query?.department);
+	const isArchivedState = stateFilter === 0;
+	const selectedDepartment = isArchivedState ? null : normalizeDepartmentKey(req.query?.department);
 	const selectedDepartmentLabel = selectedDepartment ? getDepartmentLabel(selectedDepartment) : '';
 	const pageHeading = selectedDepartment
 		? selectedDepartmentLabel
-		: (stateFilter === 0 ? 'Pending' : stateFilter === 4 ? 'Archived' : 'Listings');
+		: (stateFilter === 0 ? 'Archived' : 'Listings');
 
 	return res.render('dashboard', {
 		listings: [],
@@ -786,7 +787,7 @@ app.get('/dashboard', requireAuth, async (req, res) => {
 app.get('/api/dashboard-listings', requireAuth, async (req, res) => {
 	const requestedState = Number(req.query?.state);
 	const stateFilter = Number.isFinite(requestedState) ? requestedState : 1;
-	const selectedDepartment = normalizeDepartmentKey(req.query?.department);
+	const selectedDepartment = stateFilter === 0 ? null : normalizeDepartmentKey(req.query?.department);
 
 	try {
 		const listings = await buildDashboardListingCards(stateFilter, selectedDepartment);
@@ -1400,6 +1401,36 @@ app.delete('/api/listing/:sku', requireAuth, async (req, res) => {
 			: (err.message || 'Unable to delete listing.');
 
 		console.error('[DELETE /api/listing/:sku] Failed:', err.message || err);
+		return res.status(err?.code === 'PGRST116' ? 404 : 500).json({ error: message });
+	}
+});
+
+app.post('/api/listing/:sku/reactivate', requireAuth, async (req, res) => {
+	const sku = typeof req.params.sku === 'string' ? req.params.sku.trim() : '';
+
+	if (!sku) {
+		return res.status(400).json({ error: 'SKU is required.' });
+	}
+
+	try {
+		if (!isSupabaseConfigured()) {
+			return res.status(500).json({ error: 'Database is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY.' });
+		}
+
+		const updated = await updateListingTableState(sku, 1);
+
+		return res.json({
+			ok: true,
+			sku: updated?.sku || sku,
+			state: updated?.state ?? 1,
+			reactivated: true,
+		});
+	} catch (err) {
+		const message = err?.code === 'PGRST116'
+			? 'Listing not found for this SKU.'
+			: (err.message || 'Unable to reactivate listing.');
+
+		console.error('[POST /api/listing/:sku/reactivate] Failed:', err.message || err);
 		return res.status(err?.code === 'PGRST116' ? 404 : 500).json({ error: message });
 	}
 });

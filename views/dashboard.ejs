@@ -13,6 +13,7 @@
       </header>
 
       <% const hasSelectedDepartment = !!selectedDepartment; %>
+      <% const isArchivedPage = Number(stateFilter) === 0; %>
 
       <% if (!hasSelectedDepartment) { %>
         <form method="get" action="/dashboard" class="search-form" aria-label="Search listings by SKU" id="sku-search-form">
@@ -33,7 +34,16 @@
       <% } %>
       <% const displayTitle = selectedDepartment ? selectedDepartmentLabel : 'Listings'; %>
 
-      <% if (hasSelectedDepartment) { %>
+      <% if (isArchivedPage) { %>
+        <section class="department-banner archived-banner" aria-label="Archived listings">
+          <img src="/images/archived.png" alt="Archived" />
+          <div class="department-banner-overlay"></div>
+          <div class="department-banner-copy">
+            <span class="department-banner-label">Collection</span>
+            <h2>Archived</h2>
+          </div>
+        </section>
+      <% } else if (hasSelectedDepartment) { %>
         <section class="department-banner" aria-label="<%= displayTitle %> department">
           <button type="button" class="department-back-button" id="department-back-button" aria-label="Back to all listings">← Back</button>
           <img src="<%= '/images/' + (selectedDepartment === 'womens' ? 'womens' : selectedDepartment === 'mens' ? 'mens' : selectedDepartment === 'accessories' ? 'accessories' : 'new-arrivals') + '.png' %>" alt="<%= displayTitle %>" />
@@ -186,7 +196,7 @@
           const grid = document.getElementById('listing-card-grid');
           const emptyState = document.getElementById('dashboard-empty-state');
           const loadErrorBanner = document.getElementById('dashboard-load-error');
-          const selectedDepartment = '<%= selectedDepartment || '' %>' || '';
+          const selectedDepartment = `<%= selectedDepartment || '' %>` || '';
           const departmentBackButton = document.getElementById('department-back-button');
           const departmentCards = Array.from(document.querySelectorAll('.department-card[data-department]'));
           const modal = document.getElementById('listing-modal');
@@ -207,6 +217,11 @@
           const deleteListingButton = document.getElementById('delete-listing-button');
           const moreInfoButton = document.getElementById('more-info-button');
           const stateFilter = Number(grid && grid.dataset ? grid.dataset.stateFilter : 1) || 1;
+          const isArchivedView = stateFilter === 0;
+
+          if (finalizeItemButton && isArchivedView) {
+            finalizeItemButton.textContent = 'Reactivate Item';
+          }
 
           document.querySelectorAll('.state-dot[data-state-color]').forEach((dot) => {
             const color = dot.getAttribute('data-state-color') || '#B8A4E3';
@@ -894,6 +909,68 @@
             }
           };
 
+          const reactivateItem = async () => {
+            const skuToReactivate = getCurrentSku();
+            if (!skuToReactivate) {
+              if (printSkuStatus) {
+                printSkuStatus.textContent = 'No SKU found for this listing.';
+              }
+              return;
+            }
+
+            if (printSkuButton) {
+              printSkuButton.disabled = true;
+            }
+            if (finalizeItemButton) {
+              finalizeItemButton.disabled = true;
+            }
+            if (deleteListingButton) {
+              deleteListingButton.disabled = true;
+            }
+            if (printSkuStatus) {
+              printSkuStatus.textContent = 'Reactivating item...';
+            }
+
+            try {
+              const response = await fetch('/api/listing/' + encodeURIComponent(skuToReactivate) + '/reactivate', {
+                method: 'POST',
+                headers: {
+                  Accept: 'application/json',
+                },
+              });
+
+              const payload = await response.json().catch(() => ({}));
+              if (!response.ok || !payload || payload.ok !== true) {
+                throw new Error(payload && payload.error ? payload.error : 'Unable to reactivate item.');
+              }
+
+              removeActiveRowFromGrid();
+
+              if (printSkuStatus) {
+                printSkuStatus.textContent = 'Item reactivated.';
+              }
+              activeSku = '';
+              applyFilter();
+              window.setTimeout(() => {
+                closeModal();
+              }, 550);
+            } catch (error) {
+              if (printSkuStatus) {
+                printSkuStatus.textContent = error && error.message ? error.message : 'Unable to reactivate item.';
+              }
+            } finally {
+              if (printSkuButton) {
+                printSkuButton.disabled = !activeSku;
+              }
+              if (finalizeItemButton) {
+                finalizeItemButton.disabled = !activeSku;
+              }
+              if (deleteListingButton) {
+                deleteListingButton.disabled = !activeSku;
+              }
+            }
+          };
+
           const deleteListing = async () => {
             const skuToDelete = getCurrentSku();
             if (!skuToDelete) {
@@ -1164,7 +1241,14 @@
           }
 
           if (finalizeItemButton) {
-            finalizeItemButton.addEventListener('click', finalizeItem);
+            finalizeItemButton.addEventListener('click', () => {
+              if (isArchivedView) {
+                void reactivateItem();
+                return;
+              }
+
+              void finalizeItem();
+            });
           }
 
           if (deleteListingButton) {

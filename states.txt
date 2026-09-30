@@ -1,0 +1,6 @@
+0 - draft
+1 - open
+2 - purchased
+3 - complete
+4 - archived
+
