@@ -5,7 +5,8 @@
   const isCreate = navPath === '/create-listing' || navPath === '/listing/submitted';
   const isAnalytics = navPath === '/analytics';
   const isPending = navPath === '/pending';
-  const isMore = navPath === '/settings' || navPath === '/pending' || navPath === '/ebay' || navPath === '/messages';
+  const isDatabase = navPath === '/database';
+  const isMore = navPath === '/settings' || navPath === '/pending' || navPath === '/ebay' || navPath === '/messages' || navPath === '/database';
   const canCreateListing = isEbayConnected !== false;
 %>
 
@@ -46,7 +47,7 @@
   <div class="more-drawer-backdrop" data-more-backdrop></div>
   <aside class="more-drawer-panel" role="dialog" aria-modal="true" aria-label="More menu">
     <div class="more-drawer-topbar">
-      <img src="/res/logo.png" alt="Nine Lives Vintage" class="more-drawer-logo" />
+      <img src="/res/logo-header.png" alt="Nine Lives Vintage" class="more-drawer-logo" />
       <button type="button" class="more-drawer-close" data-more-close aria-label="Close more menu">×</button>
     </div>
 
@@ -111,6 +112,13 @@
         <span class="more-drawer-leading">
           <span class="more-drawer-icon"><img src="/icons/mail.svg" alt="" /></span>
           <span>Messages</span>
+        </span>
+      </a>
+
+      <a class="more-drawer-item <%= isDatabase ? 'is-active' : '' %>" href="/database">
+        <span class="more-drawer-leading">
+          <span class="more-drawer-icon"><img src="/icons/toolbox.svg" alt="" /></span>
+          <span>Database</span>
         </span>
       </a>
 

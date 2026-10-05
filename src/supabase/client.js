@@ -13,6 +13,26 @@ const supabase =
       })
     : null;
 
+const DATABASE_TABLES = [
+  'order_info',
+  'admins',
+  'listing',
+  'listing_image',
+  'listing_state',
+  'logs',
+  'order_info_item',
+  'price_rates',
+  'sale_details',
+];
+
+function normalizeDatabaseTableName(tableName) {
+  return String(tableName || '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 function isSupabaseConfigured() {
   return Boolean(supabase);
 }
@@ -266,6 +286,136 @@ async function getPendingListings() {
       stateColor,
     };
   });
+}
+
+async function getDatabaseTableNames() {
+  return DATABASE_TABLES.map((tableName) => ({
+    name: tableName,
+    displayName: normalizeDatabaseTableName(tableName),
+  }));
+}
+
+async function getTableRows(tableName, { limit = 50 } = {}) {
+  if (!isSupabaseConfigured()) {
+    return [];
+  }
+
+  const normalizedTable = String(tableName || '').trim();
+  if (!normalizedTable) {
+    return [];
+  }
+
+  const client = getSupabase();
+  const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(100, Number(limit))) : 50;
+
+  const { data, error } = await client
+    .from(normalizedTable)
+    .select('*')
+    .limit(safeLimit);
+
+  if (error) {
+    throw error;
+  }
+
+  return Array.isArray(data) ? data : [];
+}
+
+function detectRowIdentifier(row) {
+  if (!row || typeof row !== 'object') {
+    return null;
+  }
+
+  const candidateKeys = ['id', 'sku', 'email', 'name', 'title'];
+  for (const key of candidateKeys) {
+    if (Object.prototype.hasOwnProperty.call(row, key) && row[key] !== null && row[key] !== undefined) {
+      return { key, value: row[key] };
+    }
+  }
+
+  const firstKey = Object.keys(row)[0];
+  if (!firstKey) {
+    return null;
+  }
+
+  return { key: firstKey, value: row[firstKey] };
+}
+
+async function updateTableRow(tableName, row) {
+  if (!isSupabaseConfigured()) {
+    throw new Error('Database is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY.');
+  }
+
+  const normalizedTable = String(tableName || '').trim();
+  const identifier = detectRowIdentifier(row);
+  if (!normalizedTable || !identifier) {
+    throw new Error('Unable to determine the table row to update.');
+  }
+
+  const client = getSupabase();
+  const payload = { ...row };
+  delete payload[identifier.key];
+
+  const { error } = await client
+    .from(normalizedTable)
+    .update(payload)
+    .eq(identifier.key, identifier.value)
+    .select();
+
+  if (error) {
+    throw error;
+  }
+
+  return true;
+}
+
+async function deleteTableRow(tableName, row) {
+  if (!isSupabaseConfigured()) {
+    throw new Error('Database is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY.');
+  }
+
+  const normalizedTable = String(tableName || '').trim();
+  const identifier = detectRowIdentifier(row);
+  if (!normalizedTable || !identifier) {
+    throw new Error('Unable to determine the row to delete.');
+  }
+
+  const client = getSupabase();
+  const { error } = await client
+    .from(normalizedTable)
+    .delete()
+    .eq(identifier.key, identifier.value)
+    .select();
+
+  if (error) {
+    throw error;
+  }
+
+  return true;
+}
+
+async function insertTableRow(tableName, row) {
+  if (!isSupabaseConfigured()) {
+    throw new Error('Database is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY.');
+  }
+
+  const normalizedTable = String(tableName || '').trim();
+  if (!normalizedTable) {
+    throw new Error('Table name is required.');
+  }
+
+  const client = getSupabase();
+  const payload = row && typeof row === 'object' ? { ...row } : {};
+
+  const { data, error } = await client
+    .from(normalizedTable)
+    .insert([payload])
+    .select();
+
+  if (error) {
+    throw error;
+  }
+
+  return Array.isArray(data) && data.length ? data[0] : payload;
 }
 
 async function getLogs({ limit = 200 } = {}) {
@@ -1011,6 +1161,11 @@ module.exports = {
   getListingsForEbayRepost,
   getDashboardListings,
   getPendingListings,
+  getDatabaseTableNames,
+  getTableRows,
+  updateTableRow,
+  deleteTableRow,
+  insertTableRow,
   getLogs,
   getSaleDetails,
   getPriceRates,

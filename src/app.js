@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const session = require('express-session');
 const EbayAuthToken = require('ebay-oauth-nodejs-client');
-const { getSupabase, isSupabaseConfigured, getDashboardListings, getPendingListings, getLogs, getSaleDetails, getPriceRates, getListingsForPriceRateCheck, savePriceRate, deletePriceRate, getListingDetailsBySku, deleteListingAndAssetsBySku, addSaleDetails, updateListingState, updateListingTableState, getListingsForEbayRepost } = require('./supabase/client');
+const { getSupabase, isSupabaseConfigured, getDashboardListings, getPendingListings, getLogs, getDatabaseTableNames, getTableRows, updateTableRow, deleteTableRow, insertTableRow, getSaleDetails, getPriceRates, getListingsForPriceRateCheck, savePriceRate, deletePriceRate, getListingDetailsBySku, deleteListingAndAssetsBySku, addSaleDetails, updateListingState, updateListingTableState, getListingsForEbayRepost } = require('./supabase/client');
 const { getEbayAccessToken, getEbaySignInUrl, exchangeAuthCodeForTokens, getRequestedScopes } = require('./ebay');
 const { ebaySetup, getEbayPostingStatusForSku, getActiveListings, getEbayListingDetailsForSku, updateListingPrice, postListing } = require('./ebay/ebay');
 const { getEbayConversations, getEbayMessages } = require('./ebay/ebay_messages');
@@ -687,6 +687,107 @@ app.get('/settings/prices', requireAuth, async (req, res) => {
 		error,
 		success,
 	});
+});
+
+app.get('/database', requireAuth, async (req, res) => {
+	let tableNames = [];
+	let selectedTable = String(req.query?.table || '').trim();
+	let rows = [];
+	let error = null;
+	let success = null;
+
+	if (req.query.error) {
+		error = decodeURIComponent(String(req.query.error));
+	}
+	if (req.query.success) {
+		success = decodeURIComponent(String(req.query.success));
+	}
+
+	try {
+		if (!isSupabaseConfigured()) {
+			throw new Error('Database is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY.');
+		}
+
+		tableNames = (await getDatabaseTableNames()).map((table) => ({
+			name: table.name,
+			displayName: table.displayName,
+		}));
+
+		if (!selectedTable && tableNames.length) {
+			selectedTable = tableNames[0].name;
+		}
+
+		if (selectedTable) {
+			rows = await getTableRows(selectedTable, { limit: 50 });
+		}
+	} catch (err) {
+		error = error || (err?.message || 'Unable to load database tables.');
+		tableNames = [];
+		rows = [];
+	}
+
+	return res.render('database', {
+		currentUser: req.session.user,
+		tableNames,
+		selectedTable,
+		rows,
+		error,
+		success,
+	});
+});
+
+app.post('/database/:table/insert', requireAuth, async (req, res) => {
+	const tableName = String(req.params?.table || '').trim();
+	const rawRow = req.body?.row;
+
+	if (!tableName || !rawRow) {
+		return res.redirect('/database?table=' + encodeURIComponent(tableName) + '&error=' + encodeURIComponent('Missing row payload.'));
+	}
+
+	try {
+		const parsedRow = typeof rawRow === 'string' ? JSON.parse(rawRow) : rawRow;
+		await insertTableRow(tableName, parsedRow);
+		return res.redirect('/database?table=' + encodeURIComponent(tableName) + '&success=' + encodeURIComponent('Row created.'));
+	} catch (err) {
+		console.warn('[POST /database/:table/insert] Row insert failed:', err?.message || err);
+		return res.redirect('/database?table=' + encodeURIComponent(tableName) + '&error=' + encodeURIComponent(err?.message || 'Unable to create row.'));
+	}
+});
+
+app.post('/database/:table/update', requireAuth, async (req, res) => {
+	const tableName = String(req.params?.table || '').trim();
+	const rawRow = req.body?.row;
+
+	if (!tableName || !rawRow) {
+		return res.redirect('/database?table=' + encodeURIComponent(tableName) + '&error=' + encodeURIComponent('Missing row payload.'));
+	}
+
+	try {
+		const parsedRow = typeof rawRow === 'string' ? JSON.parse(rawRow) : rawRow;
+		await updateTableRow(tableName, parsedRow);
+		return res.redirect('/database?table=' + encodeURIComponent(tableName) + '&success=' + encodeURIComponent('Row updated.'));
+	} catch (err) {
+		console.warn('[POST /database/:table/update] Row update failed:', err?.message || err);
+		return res.redirect('/database?table=' + encodeURIComponent(tableName) + '&error=' + encodeURIComponent(err?.message || 'Unable to update row.'));
+	}
+});
+
+app.post('/database/:table/delete', requireAuth, async (req, res) => {
+	const tableName = String(req.params?.table || '').trim();
+	const rawRow = req.body?.row;
+
+	if (!tableName || !rawRow) {
+		return res.redirect('/database?table=' + encodeURIComponent(tableName) + '&error=' + encodeURIComponent('Missing row payload.'));
+	}
+
+	try {
+		const parsedRow = typeof rawRow === 'string' ? JSON.parse(rawRow) : rawRow;
+		await deleteTableRow(tableName, parsedRow);
+		return res.redirect('/database?table=' + encodeURIComponent(tableName) + '&success=' + encodeURIComponent('Row deleted.'));
+	} catch (err) {
+		console.warn('[POST /database/:table/delete] Row delete failed:', err?.message || err);
+		return res.redirect('/database?table=' + encodeURIComponent(tableName) + '&error=' + encodeURIComponent(err?.message || 'Unable to delete row.'));
+	}
 });
 
 app.get('/analytics', requireAuth, async (req, res) => {

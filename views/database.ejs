@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#322B3B" />
+    <title>Nine Lives Vintage | Database</title>
+    <link rel="icon" type="image/png" href="/res/logo.png" />
+    <link rel="apple-touch-icon" href="/res/logo.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="stylesheet" href="/css/listings.css" />
+    <style>
+      .db-topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+        margin-top: 18px;
+        margin-bottom: 16px;
+      }
+
+      .db-table-picker {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(45, 38, 53, 0.12);
+        border-radius: 14px;
+        padding: 10px 14px;
+        box-shadow: 0 8px 22px rgba(45, 38, 53, 0.05);
+      }
+
+      .db-table-picker label {
+        font-size: 0.8rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+      }
+
+      .db-table-picker select {
+        min-width: min(100%, 320px);
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(45, 38, 53, 0.15);
+        background: #fff;
+        color: var(--text-main);
+        font-size: 0.97rem;
+        font-weight: 600;
+      }
+
+      .db-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      .db-alert {
+        padding: 10px 12px;
+        border-radius: 12px;
+        font-size: 0.95rem;
+        color: var(--text-main);
+      }
+
+      .db-alert.error {
+        background: rgba(201, 85, 85, 0.08);
+        border: 1px solid rgba(201, 85, 85, 0.22);
+        color: var(--danger);
+      }
+
+      .db-alert.success {
+        background: rgba(91, 170, 126, 0.08);
+        border: 1px solid rgba(91, 170, 126, 0.25);
+        color: #1f5c38;
+      }
+
+      .db-data-card {
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(45, 38, 53, 0.12);
+        border-radius: 18px;
+        box-shadow: 0 12px 32px rgba(45, 38, 53, 0.06);
+        overflow: hidden;
+      }
+
+      .db-table-scroll {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        max-width: 100%;
+      }
+
+      .db-data-table {
+        width: 100%;
+        min-width: 640px;
+        border-collapse: collapse;
+        background: rgba(255, 255, 255, 0.7);
+        color: var(--text-main);
+      }
+
+      .db-data-table th,
+      .db-data-table td {
+        border-bottom: 1px solid rgba(45, 38, 53, 0.09);
+        text-align: left;
+        padding: 12px 14px;
+        vertical-align: top;
+        white-space: nowrap;
+      }
+
+      .db-cell-input {
+        width: 100%;
+        min-width: 120px;
+        max-width: 280px;
+        padding: 8px 10px;
+        border: 1px solid rgba(45, 38, 53, 0.15);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.8);
+        color: var(--text-main);
+      }
+
+      .db-field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        color: var(--text-main);
+      }
+
+      .db-field span {
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+      }
+
+      .db-field input {
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(45, 38, 53, 0.12);
+        background: rgba(255, 255, 255, 0.8);
+        color: var(--text-main);
+      }
+
+      .db-new-row-card {
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(45, 38, 53, 0.12);
+        border-radius: 16px;
+        padding: 18px;
+      }
+
+      .db-new-row-card h4 {
+        margin-top: 0;
+        margin-bottom: 14px;
+      }
+
+      .db-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 8px;
+      }
+
+      .db-row-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .db-button,
+      .db-button-danger,
+      .db-button-secondary {
+        appearance: none;
+        border: none;
+        border-radius: 10px;
+        padding: 9px 14px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: opacity 0.15s ease;
+      }
+
+      .db-button {
+        background: var(--primary-lavender);
+        color: var(--deep-plum);
+      }
+
+      .db-button-danger {
+        background: var(--danger);
+        color: #fff;
+      }
+
+      .db-button-secondary {
+        background: rgba(255, 255, 255, 0.5);
+        border: 1px solid rgba(45, 38, 53, 0.12);
+        color: var(--text-main);
+      }
+
+      .db-new-row-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+      }
+
+      .db-action-cell {
+        white-space: nowrap;
+      }
+
+      .db-data-table th {
+        background: rgba(169, 140, 216, 0.12);
+        color: var(--text-main);
+        font-size: 0.76rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .db-data-table tbody tr:nth-child(even) {
+        background: rgba(169, 140, 216, 0.03);
+      }
+
+      .db-data-table td {
+        max-width: 280px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .db-empty-state {
+        padding: 18px 16px;
+        color: var(--text-secondary);
+        background: rgba(255, 255, 255, 0.48);
+        border: 1px solid rgba(45, 38, 53, 0.08);
+        border-radius: 14px;
+      }
+
+      @media (max-width: 780px) {
+        .db-table-picker {
+          width: 100%;
+          justify-content: space-between;
+        }
+
+        .db-table-picker select {
+          flex: 1;
+          min-width: 0;
+        }
+      }
+    </style>
+  </head>
+  <body class="has-mobile-nav">
+    <div class="page-shell narrow-shell">
+      <header class="top-logo-bar" aria-label="Site header">
+        <img src="/res/logo-header.png" alt="Nine Lives Vintage" class="top-logo-image" />
+      </header>
+
+      <main class="wizard-card settings-home-card">
+        <div class="section-heading">
+          <p class="eyebrow muted">Tools</p>
+          <h2>Database</h2>
+          <p class="selected-category">Browse all application tables and inspect raw rows.</p>
+        </div>
+
+        <div class="db-topbar">
+          <% if (tableNames && tableNames.length) { %>
+            <form method="get" action="/database" class="db-table-picker">
+              <label for="database-table">Table</label>
+              <select id="database-table" name="table" onchange="this.form.submit()">
+                <% tableNames.forEach((table) => { %>
+                  <option value="<%= table.name %>" <%= selectedTable === table.name ? 'selected' : '' %>><%= table.displayName %></option>
+                <% }) %>
+              </select>
+            </form>
+          <% } %>
+        </div>
+
+        <section class="db-panel" aria-live="polite">
+          <% if (error) { %>
+            <div class="db-alert error"><%= error %></div>
+          <% } %>
+
+          <% if (success) { %>
+            <div class="db-alert success"><%= success %></div>
+          <% } %>
+
+          <% if (!selectedTable) { %>
+            <div class="db-empty-state">Choose a table to inspect.</div>
+          <% } else { %>
+            <% const currentTable = (tableNames || []).find((table) => table.name === selectedTable); %>
+            <% const columnNames = rows && rows.length ? Object.keys(rows[0] || {}) : []; %>
+
+            <div class="db-toolbar">
+              <h3><%= currentTable ? currentTable.displayName : selectedTable %></h3>
+              <% if (columnNames.length) { %>
+                <button type="button" class="db-button add-row-button">Add row</button>
+              <% } %>
+            </div>
+
+            <% if (!rows || !rows.length) { %>
+              <div class="db-empty-state">This table has no rows or no access path is available.</div>
+            <% } else { %>
+              <div class="db-data-card">
+                <div class="db-table-scroll">
+                  <table class="db-data-table">
+                    <thead>
+                      <tr>
+                        <% columnNames.forEach((columnName) => { %>
+                          <th><%= columnName %></th>
+                        <% }) %>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <% rows.forEach((row) => { %>
+                        <tr class="db-edit-row" data-row="<%= encodeURIComponent(JSON.stringify(row)) %>">
+                          <% columnNames.forEach((columnName) => { %>
+                            <%
+                              const rawValue = row[columnName];
+                              const renderedValue = rawValue === null || rawValue === undefined
+                                ? ''
+                                : typeof rawValue === 'object'
+                                  ? JSON.stringify(rawValue)
+                                  : String(rawValue);
+                            %>
+                            <td>
+                              <input type="text" class="db-cell-input" name="<%= columnName %>" value="<%= renderedValue %>" data-column="<%= columnName %>" />
+                            </td>
+                          <% }) %>
+                          <td class="db-action-cell">
+                            <button type="button" class="db-button save-row-button">Save</button>
+                            <button type="button" class="db-button-danger delete-row-button">Delete</button>
+                          </td>
+                        </tr>
+                      <% }) %>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            <% } %>
+
+            <% if (columnNames.length) { %>
+              <div class="db-new-row-card" hidden>
+                <h4>Add new row</h4>
+                <form id="db-new-row-form" class="db-new-row-form">
+                  <div class="db-new-row-grid">
+                    <% columnNames.forEach((columnName) => { %>
+                      <label class="db-field">
+                        <span><%= columnName %></span>
+                        <input type="text" name="<%= columnName %>" placeholder="<%= columnName %>" />
+                      </label>
+                    <% }) %>
+                  </div>
+                  <div class="db-row-actions">
+                    <button type="submit" class="db-button">Create row</button>
+                    <button type="button" class="db-button-secondary cancel-new-row-button">Cancel</button>
+                  </div>
+                </form>
+              </div>
+            <% } %>
+          <% } %>
+        </section>
+      </main>
+
+      <%- include('partials/mobile-nav', { currentPath: '/database' }) %>
+    </div>
+
+    <script>
+      (function () {
+        const selectedTable = '<%= selectedTable || '' %>';
+        const addRowButton = document.querySelector('.add-row-button');
+        const newRowCard = document.querySelector('.db-new-row-card');
+        const cancelButton = document.querySelector('.cancel-new-row-button');
+
+        function parseFormValue(value) {
+          if (value === undefined || value === null) {
+            return null;
+          }
+
+          if (typeof value !== 'string') {
+            return value;
+          }
+
+          const trimmed = value.trim();
+          if (trimmed === '') {
+            return '';
+          }
+
+          if (trimmed === 'null') {
+            return null;
+          }
+
+          if (trimmed === 'true') {
+            return true;
+          }
+
+          if (trimmed === 'false') {
+            return false;
+          }
+
+          if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+            return Number(trimmed);
+          }
+
+          try {
+            const parsed = JSON.parse(trimmed);
+            return parsed;
+          } catch (error) {
+            return trimmed;
+          }
+        }
+
+        function buildRowFromInputs(inputs) {
+          const row = {};
+          inputs.forEach((input) => {
+            const key = input.getAttribute('name');
+            if (!key) {
+              return;
+            }
+            row[key] = parseFormValue(input.value);
+          });
+          return row;
+        }
+
+        async function postRowAction(url, row) {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify({ row }),
+          });
+
+          if (!response.ok) {
+            const payload = await response.json().catch(() => ({}));
+            throw new Error(payload.error || 'Request failed.');
+          }
+
+          return response;
+        }
+
+        if (addRowButton && newRowCard) {
+          addRowButton.addEventListener('click', () => {
+            newRowCard.hidden = !newRowCard.hidden;
+          });
+        }
+
+        if (cancelButton && newRowCard) {
+          cancelButton.addEventListener('click', () => {
+            newRowCard.hidden = true;
+            const form = document.getElementById('db-new-row-form');
+            if (form) {
+              form.reset();
+            }
+          });
+        }
+
+        const newRowForm = document.getElementById('db-new-row-form');
+        if (newRowForm && selectedTable) {
+          newRowForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const row = buildRowFromInputs(Array.from(newRowForm.querySelectorAll('input')));
+
+            try {
+              await postRowAction('/database/' + encodeURIComponent(selectedTable) + '/insert', row);
+              window.location.reload();
+            } catch (error) {
+              window.alert(error.message || 'Unable to create row.');
+            }
+          });
+        }
+
+        document.querySelectorAll('.save-row-button').forEach((button) => {
+          button.addEventListener('click', async () => {
+            const rowEl = button.closest('.db-edit-row');
+            if (!rowEl || !selectedTable) {
+              return;
+            }
+
+            const row = buildRowFromInputs(Array.from(rowEl.querySelectorAll('input[name]')));
+
+            try {
+              await postRowAction('/database/' + encodeURIComponent(selectedTable) + '/update', row);
+              window.location.reload();
+            } catch (error) {
+              window.alert(error.message || 'Unable to save row.');
+            }
+          });
+        });
+
+        document.querySelectorAll('.delete-row-button').forEach((button) => {
+          button.addEventListener('click', async () => {
+            const rowEl = button.closest('.db-edit-row');
+            if (!rowEl || !selectedTable) {
+              return;
+            }
+
+            const shouldDelete = window.confirm('Delete this row?');
+            if (!shouldDelete) {
+              return;
+            }
+
+            const row = buildRowFromInputs(Array.from(rowEl.querySelectorAll('input[name]')));
+
+            try {
+              await postRowAction('/database/' + encodeURIComponent(selectedTable) + '/delete', row);
+              window.location.reload();
+            } catch (error) {
+              window.alert(error.message || 'Unable to delete row.');
+            }
+          });
+        });
+      })();
+    </script>
+  </body>
+</html>
