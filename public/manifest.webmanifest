@@ -1,0 +1,17 @@
+{
+  "name": "Nine Lives Vintage",
+  "short_name": "Nine Lives",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFF9F3",
+  "theme_color": "#322B3B",
+  "description": "Nine Lives Vintage inventory and listing dashboard",
+  "icons": [
+    {
+      "src": "/res/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

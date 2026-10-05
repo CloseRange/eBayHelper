@@ -3,19 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#322B3B" />
     <title>Nine Lives Vintage | Inventory</title>
+    <link rel="icon" type="image/png" href="/res/logo.png" />
+    <link rel="apple-touch-icon" href="/res/logo.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="stylesheet" href="/css/listings.css" />
   </head>
   <body class="has-mobile-nav">
     <div class="page-shell">
       <header class="top-logo-bar" aria-label="Site header">
-        <img src="/res/logo-header.png" alt="Nine Lives Vintage" class="top-logo-image" />
+        <img src="/res/logo.png" alt="Nine Lives Vintage" class="top-logo-image" />
       </header>
 
       <% const hasSelectedDepartment = !!selectedDepartment; %>
       <% const isArchivedPage = Number(stateFilter) === 0; %>
+      <% const isShippingPage = Number(stateFilter) === 2; %>
 
-      <% if (!hasSelectedDepartment) { %>
+      <% if (!hasSelectedDepartment && !isShippingPage) { %>
         <form method="get" action="/dashboard" class="search-form" aria-label="Search listings by SKU" id="sku-search-form">
           <div class="search-controls">
             <input
@@ -32,7 +37,7 @@
           </div>
         </form>
       <% } %>
-      <% const displayTitle = selectedDepartment ? selectedDepartmentLabel : 'Listings'; %>
+      <% const displayTitle = selectedDepartment ? selectedDepartmentLabel : (isShippingPage ? 'Shipping' : 'Listings'); %>
 
       <% if (isArchivedPage) { %>
         <section class="department-banner archived-banner" aria-label="Archived listings">
@@ -41,6 +46,15 @@
           <div class="department-banner-copy">
             <span class="department-banner-label">Collection</span>
             <h2>Archived</h2>
+          </div>
+        </section>
+      <% } else if (isShippingPage) { %>
+        <section class="department-banner" aria-label="Shipping page">
+          <img src="/images/shipping.png" alt="Shipping" />
+          <div class="department-banner-overlay"></div>
+          <div class="department-banner-copy">
+            <span class="department-banner-label">Status</span>
+            <h2>Shipping</h2>
           </div>
         </section>
       <% } else if (hasSelectedDepartment) { %>

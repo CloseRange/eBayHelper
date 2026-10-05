@@ -408,6 +408,165 @@ app.get('/login', (req, res) => {
 	});
 });
 
+app.get('/signin', (req, res) => {
+	if (req.session.user) {
+		return res.redirect('/dashboard');
+	}
+
+	return res.render('signin', {
+		error: '',
+		email: '',
+	});
+});
+
+app.post('/signin', async (req, res) => {
+	const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+	const password = typeof req.body?.password === 'string' ? req.body.password : '';
+
+	if (!email || !password) {
+		return res.status(400).render('signin', {
+			error: 'Email and password are required.',
+			email,
+		});
+	}
+
+	if (!isSupabaseConfigured()) {
+		return res.status(503).render('signin', {
+			error: 'User sign in is not configured. Add SUPABASE_URL and SUPABASE_ANON_KEY.',
+			email,
+		});
+	}
+
+	try {
+		const { data, error } = await getSupabase().auth.signInWithPassword({ email, password });
+		if (error) {
+			throw error;
+		}
+
+		const session = data?.session || null;
+		if (!session?.access_token || !session?.refresh_token) {
+			throw new Error('Supabase did not return an auth session.');
+		}
+
+		req.session.supabaseAccessToken = session.access_token;
+		req.session.supabaseRefreshToken = session.refresh_token;
+		req.session.user = {
+			id: data?.user?.id || 'user-session',
+			email: data?.user?.email || email,
+		};
+
+		return req.session.save((saveErr) => {
+			if (saveErr) {
+				console.warn('[POST /signin] Failed to persist session:', saveErr.message || saveErr);
+				return res.status(500).render('signin', {
+					error: 'Unable to save user session. Please try again.',
+					email,
+				});
+			}
+
+			return res.redirect('/dashboard');
+		});
+	} catch (err) {
+		console.warn('[POST /signin] User sign-in failed:', err.message || err);
+		return res.status(401).render('signin', {
+			error: 'Invalid email or password.',
+			email,
+		});
+	}
+});
+
+app.get('/signup', (req, res) => {
+	if (req.session.user) {
+		return res.redirect('/dashboard');
+	}
+
+	return res.render('signup', {
+		error: '',
+		email: '',
+	});
+});
+
+app.post('/signup', async (req, res) => {
+	const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+	const password = typeof req.body?.password === 'string' ? req.body.password : '';
+	const confirmPassword = typeof req.body?.confirmPassword === 'string' ? req.body.confirmPassword : '';
+
+	if (!email || !password) {
+		return res.status(400).render('signup', {
+			error: 'Email and password are required.',
+			email,
+		});
+	}
+
+	if (password.length < 8) {
+		return res.status(400).render('signup', {
+			error: 'Password must be at least 8 characters long.',
+			email,
+		});
+	}
+
+	if (password !== confirmPassword) {
+		return res.status(400).render('signup', {
+			error: 'Passwords do not match.',
+			email,
+		});
+	}
+
+	if (!isSupabaseConfigured()) {
+		return res.status(503).render('signup', {
+			error: 'User sign up is not configured. Add SUPABASE_URL and SUPABASE_ANON_KEY.',
+			email,
+		});
+	}
+
+	try {
+		const { data, error } = await getSupabase().auth.signUp({
+			email,
+			password,
+			options: {
+				emailRedirectTo: `${req.protocol}://${req.get('host')}/signin`,
+			},
+		});
+
+		if (error) {
+			throw error;
+		}
+
+		if (data?.session) {
+			const session = data.session;
+			req.session.supabaseAccessToken = session.access_token;
+			req.session.supabaseRefreshToken = session.refresh_token;
+			req.session.user = {
+				id: data?.user?.id || 'user-session',
+				email: data?.user?.email || email,
+			};
+
+			return req.session.save((saveErr) => {
+				if (saveErr) {
+					console.warn('[POST /signup] Failed to persist session:', saveErr.message || saveErr);
+					return res.status(500).render('signup', {
+						error: 'Unable to save user session. Please try again.',
+						email,
+					});
+				}
+
+				return res.redirect('/dashboard');
+			});
+		}
+
+		return res.render('signin', {
+			error: 'Account created. Check your email to confirm, then sign in.',
+			email,
+		});
+	} catch (err) {
+		console.warn('[POST /signup] User sign-up failed:', err.message || err);
+		return res.status(400).render('signup', {
+			error: err.message || 'Unable to create account right now.',
+			email,
+		});
+	}
+});
+
 app.post('/login', async (req, res) => {
 	const passcode = typeof req.body?.password === 'string' ? req.body.password.trim() : '';
 
@@ -417,6 +576,9 @@ app.post('/login', async (req, res) => {
 		});
 	}
 
+	let supabaseLoginError = null;
+	let supabaseAuthSucceeded = false;
+
 	try {
 		if (isSupabaseConfigured()) {
 			const { data, error } = await getSupabase().auth.signInWithPassword({
@@ -425,22 +587,28 @@ app.post('/login', async (req, res) => {
 			});
 
 			if (error) {
-				throw error;
+				supabaseLoginError = error;
+			} else {
+				const session = data?.session || null;
+				if (!session?.access_token || !session?.refresh_token) {
+					supabaseLoginError = new Error('Supabase did not return an auth session.');
+				} else {
+					req.session.supabaseAccessToken = session.access_token;
+					req.session.supabaseRefreshToken = session.refresh_token;
+					req.session.user = {
+						id: data?.user?.id || 'admin-user',
+						email: DEFAULT_LOGIN_EMAIL,
+					};
+					supabaseAuthSucceeded = true;
+				}
 			}
+		}
 
-			const session = data?.session || null;
-			if (!session?.access_token || !session?.refresh_token) {
-				throw new Error('Supabase did not return an auth session.');
-			}
-
-			req.session.supabaseAccessToken = session.access_token;
-			req.session.supabaseRefreshToken = session.refresh_token;
-			req.session.user = {
-				id: data?.user?.id || 'admin-user',
-				email: DEFAULT_LOGIN_EMAIL,
-			};
-		} else {
+		if (!supabaseAuthSucceeded) {
 			if (passcode !== DEFAULT_LOGIN_PASSCODE) {
+				if (supabaseLoginError) {
+					console.warn('[POST /login] Supabase auth failed:', supabaseLoginError.message || supabaseLoginError);
+				}
 				throw new Error('Invalid passcode.');
 			}
 
@@ -831,8 +999,10 @@ app.get('/pending', requireAuth, async (req, res) => {
 app.get('/orders', requireAuth, async (req, res) => {
 	return res.render('dashboard', {
 		listings: [],
-		pageHeading: 'Orders',
+		pageHeading: 'Shipping',
 		stateFilter: 2,
+		selectedDepartment: null,
+		selectedDepartmentLabel: '',
 		skuQuery: '',
 		error: null,
 		ebayConnectionError: null,
@@ -1248,6 +1418,10 @@ app.get('/listing/:sku', requireAuth, async (req, res) => {
 		return res.render('dashboard', {
 			listings: [],
 			pendingListings: [],
+			pageHeading: 'Listings',
+			stateFilter: 1,
+			selectedDepartment: null,
+			selectedDepartmentLabel: '',
 			skuQuery: '',
 			error: 'Database is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY.',
 			ebayConnectionError: null,

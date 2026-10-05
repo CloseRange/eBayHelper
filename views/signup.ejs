@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nine Lives Vintage | Sign Up</title>
+    <link rel="stylesheet" href="/css/auth.css" />
+  </head>
+  <body>
+    <main class="auth-page">
+      <section class="auth-card" aria-labelledby="signup-heading">
+        <div class="brand-lockup">
+          <img src="/res/logo.png" alt="Nine Lives Vintage logo" class="brand-logo-mark" />
+          <p class="brand-wordmark">Nine Lives Vintage</p>
+        </div>
+        <h1 id="signup-heading">Create account</h1>
+        <p class="subtitle">Join as a member and start managing your account.</p>
+
+        <% if (error) { %>
+          <div class="alert" role="alert"><%= error %></div>
+        <% } %>
+
+        <form method="post" action="/signup" class="auth-form">
+          <label for="email">Email</label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            value="<%= email || '' %>"
+            autocomplete="email"
+            required
+            placeholder="you@example.com"
+          />
+
+          <label for="password">Password</label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autocomplete="new-password"
+            required
+            placeholder="Create a password"
+          />
+
+          <label for="confirmPassword">Confirm password</label>
+          <input
+            id="confirmPassword"
+            name="confirmPassword"
+            type="password"
+            autocomplete="new-password"
+            required
+            placeholder="Re-enter your password"
+          />
+
+          <button type="submit">Create account</button>
+        </form>
+
+        <p class="subtitle" style="margin-top:18px; margin-bottom:0; text-align:center;">
+          Already have an account? <a href="/signin" style="color: var(--deep-plum); font-weight:700; text-decoration:none;">Sign in</a>
+        </p>
+      </section>
+    </main>
+  </body>
+</html>
