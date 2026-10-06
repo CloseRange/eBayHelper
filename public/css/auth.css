@@ -83,6 +83,82 @@ body {
   line-height: 0.95;
 }
 
+.auth-banner {
+  position: relative;
+  margin: -24px -18px 18px;
+  border-radius: 28px 28px 22px 22px;
+  overflow: hidden;
+  min-height: 150px;
+}
+
+.auth-banner-image {
+  width: 100%;
+  height: 100%;
+  min-height: 150px;
+  object-fit: cover;
+  display: block;
+}
+
+.auth-banner::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(20, 16, 27, 0.7) 0%, rgba(20, 16, 27, 0.35) 45%, rgba(20, 16, 27, 0.08) 100%);
+}
+
+.auth-banner-brand {
+  position: absolute;
+  z-index: 1;
+  top: 14px;
+  left: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.auth-banner-logo {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+  display: block;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.28));
+}
+
+.auth-banner-wordmark {
+  margin: 0;
+  color: #ffffff;
+  font-size: clamp(1rem, 3.2vw, 1.4rem);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.32);
+}
+
+.auth-banner-copy {
+  position: absolute;
+  z-index: 1;
+  left: 14px;
+  right: 14px;
+  bottom: 12px;
+  max-width: min(50%, 260px);
+}
+
+.auth-banner-copy h1 {
+  margin: 0 0 4px;
+  font-size: clamp(1.1rem, 4.2vw, 1.55rem);
+  line-height: 1.1;
+  color: #ffffff;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.32);
+}
+
+.auth-banner-copy .subtitle {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 0.84rem;
+  line-height: 1.35;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+}
+
 h1 {
   margin: 8px 0 4px;
   font-size: clamp(1.8rem, 7vw, 2.4rem);
@@ -177,5 +253,27 @@ button:active {
   .dashboard-card {
     padding: 30px 28px;
     border-radius: 30px;
+  }
+
+  .auth-banner {
+    margin: -30px -28px 20px;
+    border-radius: 30px 30px 24px 24px;
+    min-height: 170px;
+  }
+
+  .auth-banner-image {
+    min-height: 170px;
+  }
+
+  .auth-banner-brand {
+    top: 18px;
+    left: 18px;
+  }
+
+  .auth-banner-copy {
+    left: 18px;
+    right: 18px;
+    bottom: 16px;
+    max-width: min(50%, 300px);
   }
 }

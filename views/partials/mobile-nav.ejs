@@ -12,13 +12,13 @@
 
 <nav class="mobile-bottom-nav" aria-label="Primary">
   <a class="mobile-nav-item <%= isListings ? 'is-active' : '' %>" href="/dashboard" aria-label="Listings">
-    <img src="/icons/shirt.svg" alt="" />
-    <span>Listings</span>
+    <img src="/icons/shirt.svg" alt="" class="mobile-nav-icon" />
+    <span class="mobile-nav-label">Listings</span>
   </a>
 
   <a class="mobile-nav-item <%= isOrders ? 'is-active' : '' %>" href="/orders" aria-label="Orders">
-    <img src="/icons/layout-arrow-right.svg" alt="" />
-    <span>Orders</span>
+    <img src="/icons/layout-arrow-right.svg" alt="" class="mobile-nav-icon" />
+    <span class="mobile-nav-label">Orders</span>
   </a>
 
   <a
@@ -33,13 +33,13 @@
   </a>
 
   <a class="mobile-nav-item <%= isAnalytics ? 'is-active' : '' %>" href="/analytics" aria-label="Analyitcs">
-    <img src="/icons/chart-line.svg" alt="" />
-    <span>Analyitcs</span>
+    <img src="/icons/chart-line.svg" alt="" class="mobile-nav-icon" />
+    <span class="mobile-nav-label">Analyitcs</span>
   </a>
 
   <button type="button" class="mobile-nav-item mobile-nav-item-button <%= isMore ? 'is-active' : '' %>" data-more-toggle aria-label="Open more menu">
-    <img src="/icons/ellipis.svg" alt="" />
-    <span>More</span>
+    <img src="/icons/ellipsis.svg" alt="" class="mobile-nav-icon" />
+    <span class="mobile-nav-label">More</span>
   </button>
 </nav>
 

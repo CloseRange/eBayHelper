@@ -3511,18 +3511,27 @@ h1 {
   transition: color 180ms ease;
 }
 
-.mobile-nav-item img {
+.mobile-nav-item .mobile-nav-icon {
   width: 18px;
   height: 18px;
   opacity: 0.75;
   transition: opacity 180ms ease, filter 180ms ease;
 }
 
+.mobile-nav-item .mobile-nav-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+}
+
 .mobile-nav-item-button {
   appearance: none;
+  -webkit-appearance: none;
   border: none;
   background: transparent;
   font: inherit;
+  line-height: inherit;
   width: 100%;
   cursor: pointer;
   padding-left: 0;
@@ -3534,7 +3543,7 @@ h1 {
   color: #5b3fb2;
 }
 
-.mobile-nav-item.is-active img {
+.mobile-nav-item.is-active .mobile-nav-icon {
   opacity: 1;
   filter: invert(34%) sepia(27%) saturate(1706%) hue-rotate(221deg) brightness(93%) contrast(90%);
 }

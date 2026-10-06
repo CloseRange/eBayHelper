@@ -13,12 +13,17 @@
   <body>
     <main class="auth-page">
       <section class="auth-card" aria-labelledby="login-heading">
-        <div class="brand-lockup">
-          <img src="/res/logo.png" alt="Nine Lives Vintage logo" class="brand-logo-mark" />
-          <p class="brand-wordmark">Nine Lives Vintage</p>
+        <div class="auth-banner" aria-hidden="true">
+          <img src="/res/brand-banner.png" alt="" class="auth-banner-image" />
+          <div class="auth-banner-brand">
+            <img src="/res/logo-invert.png" alt="" class="auth-banner-logo" />
+            <p class="auth-banner-wordmark">Nine Lives Vintage</p>
+          </div>
+          <div class="auth-banner-copy">
+            <h1 id="login-heading">Welcome back</h1>
+            <p class="subtitle">Enter your passcode to unlock the admin dashboard.</p>
+          </div>
         </div>
-        <h1 id="login-heading">Welcome back</h1>
-        <p class="subtitle">Enter your passcode to unlock the admin dashboard.</p>
 
         <% if (error) { %>
           <div class="alert" role="alert"><%= error %></div>
