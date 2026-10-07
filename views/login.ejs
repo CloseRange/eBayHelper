@@ -5,43 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#322B3B" />
     <title>Nine Lives Vintage | Login</title>
-    <link rel="icon" type="image/png" href="/res/logo.png" />
-    <link rel="apple-touch-icon" href="/res/logo.png" />
+    <link rel="icon" type="image/png" href="/res/app_icon.png" />
+    <link rel="apple-touch-icon" href="/res/app_icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="stylesheet" href="/css/auth.css" />
   </head>
   <body>
     <main class="auth-page">
-      <section class="auth-card" aria-labelledby="login-heading">
-        <div class="auth-banner" aria-hidden="true">
+      <section class="auth-card login-card" aria-label="Login">
+        <div class="auth-banner">
           <img src="/res/brand-banner.png" alt="" class="auth-banner-image" />
-          <div class="auth-banner-brand">
-            <img src="/res/logo-invert.png" alt="" class="auth-banner-logo" />
-            <p class="auth-banner-wordmark">Nine Lives Vintage</p>
-          </div>
-          <div class="auth-banner-copy">
-            <h1 id="login-heading">Welcome back</h1>
-            <p class="subtitle">Enter your passcode to unlock the admin dashboard.</p>
-          </div>
+
+          <form method="post" action="/login" class="auth-form auth-banner-form">
+            <label for="password" class="visually-hidden">Passcode</label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              required
+              placeholder="Enter your passcode"
+            />
+
+            <button type="submit">Unlock</button>
+          </form>
         </div>
 
         <% if (error) { %>
           <div class="alert" role="alert"><%= error %></div>
         <% } %>
 
-        <form method="post" action="/login" class="auth-form">
-          <label for="password">Passcode</label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autocomplete="current-password"
-            required
-            placeholder="Enter your passcode"
-          />
-
-          <button type="submit">Unlock</button>
-        </form>
       </section>
     </main>
   </body>
