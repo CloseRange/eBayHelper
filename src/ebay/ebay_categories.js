@@ -1,8 +1,9 @@
 require("dotenv").config();
 
-const { getEbayApiBase } = require('./index');
+const { getEbayApiBase, getEbayAccessToken } = require('./index');
 
 const EBAY_TAXONOMY_BASE = `${getEbayApiBase()}/commerce/taxonomy/v1`;
+const EBAY_TAXONOMY_SCOPE = 'https://api.ebay.com/oauth/api_scope';
 const fs = require("fs");
 const path = require("path");
 
@@ -10,6 +11,52 @@ const CACHE_FILE = path.join(__dirname, "../cache/ebay-aspects.json");
 
 const CACHE_MAX_AGE =
     7 * 24 * 60 * 60 * 1000;
+
+function getScopeListWithTaxonomy() {
+    // Taxonomy endpoints only require api_scope. Keeping this minimal avoids
+    // token mint failures when other optional scopes are not granted.
+    return [EBAY_TAXONOMY_SCOPE];
+}
+
+function isAccessDeniedError(payload) {
+    const errors = Array.isArray(payload?.errors) ? payload.errors : [];
+
+    return errors.some((error) => {
+        const errorId = Number(error?.errorId);
+        const message = String(error?.message || '').toLowerCase();
+        const longMessage = String(error?.longMessage || '').toLowerCase();
+
+        return errorId === 1100 ||
+            message.includes('access denied') ||
+            longMessage.includes('insufficient permissions');
+    });
+}
+
+async function fetchTaxonomyJson(url) {
+    const headersForToken = (token) => ({
+        Authorization: `Bearer ${String(token || '').trim()}`,
+        Accept: 'application/json'
+    });
+
+    let token = String(process.env.EBAY_ACCESS_TOKEN || '').trim();
+    let response = await fetch(url, { headers: headersForToken(token) });
+    let data = await response.json().catch(() => ({}));
+
+    if (!response.ok && (response.status === 401 || isAccessDeniedError(data))) {
+        const refreshedToken = await getEbayAccessToken({
+            forceRefresh: true,
+            environment: process.env.EBAY_ENV || 'PRODUCTION',
+            scopes: getScopeListWithTaxonomy(),
+        });
+
+        process.env.EBAY_ACCESS_TOKEN = refreshedToken;
+        token = String(refreshedToken || '').trim();
+        response = await fetch(url, { headers: headersForToken(token) });
+        data = await response.json().catch(() => ({}));
+    }
+
+    return { response, data };
+}
 
 const types = {
 
@@ -204,17 +251,9 @@ const types = {
 
 
 async function getCategoryTreeId() {
-    const response = await fetch(
-        `${EBAY_TAXONOMY_BASE}/get_default_category_tree_id?marketplace_id=EBAY_US`,
-        {
-            headers: {
-                Authorization: `Bearer ${process.env.EBAY_ACCESS_TOKEN}`,
-                Accept: "application/json"
-            }
-        }
+    const { response, data } = await fetchTaxonomyJson(
+        `${EBAY_TAXONOMY_BASE}/get_default_category_tree_id?marketplace_id=EBAY_US`
     );
-
-    const data = await response.json();
 
     if (!response.ok) {
         throw new Error(
@@ -369,17 +408,9 @@ async function resolveEbayCategoryId(inputCategory, fallbackTypeRef = null) {
 async function findEbayCategories(query) {
     const treeId = await getCategoryTreeId();
 
-    const response = await fetch(
-        `${EBAY_TAXONOMY_BASE}/category_tree/${treeId}/get_category_suggestions?q=${encodeURIComponent(query)}`,
-        {
-            headers: {
-                Authorization: `Bearer ${process.env.EBAY_ACCESS_TOKEN}`,
-                Accept: "application/json"
-            }
-        }
+    const { response, data } = await fetchTaxonomyJson(
+        `${EBAY_TAXONOMY_BASE}/category_tree/${treeId}/get_category_suggestions?q=${encodeURIComponent(query)}`
     );
-
-    const data = await response.json();
 
     if (!response.ok) {
         throw new Error(
@@ -409,17 +440,9 @@ async function findLeafEbayCategory(query) {
 async function getEbayCategoryAspects(categoryId) {
     const treeId = await getCategoryTreeId();
 
-    const response = await fetch(
-        `${EBAY_TAXONOMY_BASE}/category_tree/${treeId}/get_item_aspects_for_category?category_id=${encodeURIComponent(categoryId)}`,
-        {
-            headers: {
-                Authorization: `Bearer ${process.env.EBAY_ACCESS_TOKEN}`,
-                Accept: "application/json"
-            }
-        }
+    const { response, data } = await fetchTaxonomyJson(
+        `${EBAY_TAXONOMY_BASE}/category_tree/${treeId}/get_item_aspects_for_category?category_id=${encodeURIComponent(categoryId)}`
     );
-
-    const data = await response.json();
 
     if (!response.ok) {
         throw new Error(
@@ -454,17 +477,31 @@ async function getAspects(type) {
         `Fetching eBay aspects for ${type.name}`
     );
 
+    let category;
+    let ebayAspects;
 
-    const category = await findLeafEbayCategory(type.ebayQuery);
+    try {
+        category = await findLeafEbayCategory(type.ebayQuery);
 
-    if (!category?.categoryId) {
-        throw new Error(`No valid live leaf eBay category found for ${type.name}`);
+        if (!category?.categoryId) {
+            throw new Error(`No valid live leaf eBay category found for ${type.name}`);
+        }
+
+        ebayAspects =
+            await getEbayCategoryAspects(
+                category.categoryId
+            );
+    } catch (err) {
+        if (cached?.data?.categoryId && Array.isArray(cached?.data?.aspects) && cached.data.aspects.length > 0) {
+            console.warn(
+                `[eBay] Falling back to cached aspects for ${type.name}:`,
+                err?.message || err
+            );
+            return cached.data;
+        }
+
+        throw err;
     }
-
-    const ebayAspects =
-        await getEbayCategoryAspects(
-            category.categoryId
-        );
 
 
     const result = {

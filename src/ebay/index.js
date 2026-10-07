@@ -2,6 +2,7 @@ const querystring = require('querystring');
 const EbayAuthToken = require('ebay-oauth-nodejs-client');
 
 const DEFAULT_EBAY_SCOPES = [
+  'https://api.ebay.com/oauth/api_scope',
   'https://api.ebay.com/oauth/api_scope/sell.inventory',
   'https://api.ebay.com/oauth/api_scope/sell.account',
   'https://api.ebay.com/oauth/api_scope/commerce.message',
@@ -73,10 +74,12 @@ async function getEbayAccessToken({ forceRefresh = false, environment = process.
   const ebayAuthToken = new EbayAuthToken({
     clientId,
     clientSecret,
+    env: normalizedEnvironment,
     redirectUri: process.env.EBAY_REDIRECT_URI || 'https://ebayhelper.onrender.com/auth/ebay/callback',
   });
 
-  const rawToken = await ebayAuthToken.getApplicationToken(normalizedEnvironment, effectiveScopes);
+  const scopeArg = effectiveScopes.join(' ');
+  const rawToken = await ebayAuthToken.getApplicationToken(normalizedEnvironment, scopeArg);
   const payload = typeof rawToken === 'string' ? JSON.parse(rawToken) : rawToken;
 
   if (!payload || !payload.access_token) {

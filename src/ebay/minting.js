@@ -14,20 +14,26 @@ async function getAccessToken() {
 }
 
 async function beginMint(res) {
+    const configuredEnvironment = String(process.env.EBAY_ENV || 'PRODUCTION').trim().toUpperCase() === 'SANDBOX'
+        ? 'SANDBOX'
+        : 'PRODUCTION';
+
     const ebayAuthToken = new EbayAuthToken({
         clientId: process.env.EBAY_CLIENT_ID,
         clientSecret: process.env.EBAY_CLIENT_SECRET,
+        env: configuredEnvironment,
         redirectUri: process.env.EBAY_REDIRECT_URI,
     });
 
     const scopes = [
+        'https://api.ebay.com/oauth/api_scope',
         'https://api.ebay.com/oauth/api_scope/sell.inventory',
         'https://api.ebay.com/oauth/api_scope/sell.account',
-        'https://api.ebay.com/oauth/api_scope/commerce.message'
+        'https://api.ebay.com/oauth/api_scope/commerce.message',
     ];
 
     const options = { state: 'custom-state-value', prompt: 'login' };
-    const authUrl = ebayAuthToken.generateUserAuthorizationUrl('PRODUCTION', scopes, options);
+    const authUrl = ebayAuthToken.generateUserAuthorizationUrl(configuredEnvironment, scopes, options);
     return res.redirect(authUrl);
 }
 

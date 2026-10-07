@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/run.js",
+    "warm:aspects": "node src/run.js --warm-aspects",
     "server": "node src/server.js",
     "token:test": "node src/run.js",
     "ebay:test": "node src/ebay/test_post_listing.js",

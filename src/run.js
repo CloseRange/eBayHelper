@@ -13,9 +13,80 @@ const { env } = require('process');
 
 const { generatePrintAndDiscardSkuLabelPdf, printPdfFile } = require('./util/sku_label_pdf');
 
+async function warmAllCategoryAspectsCache({ continueOnError = true } = {}) {
+    const allTypes = Object.values(types || {}).sort((a, b) => Number(a?.id ?? 0) - Number(b?.id ?? 0));
+    const startedAt = Date.now();
+    const results = [];
+
+    console.log(`[cache-warm] Starting aspect cache warmup for ${allTypes.length} categories...`);
+
+    for (const type of allTypes) {
+        const categoryLabel = `${type?.name || 'Unknown'} (id=${type?.id ?? 'n/a'})`;
+
+        try {
+            const data = await getAspects(type);
+            const aspectCount = Array.isArray(data?.aspects) ? data.aspects.length : 0;
+            const categoryId = data?.categoryId || 'n/a';
+
+            results.push({
+                typeId: type?.id,
+                typeName: type?.name,
+                ok: true,
+                categoryId,
+                aspectCount,
+            });
+
+            console.log(`[cache-warm] OK: ${categoryLabel} -> eBay category ${categoryId}, ${aspectCount} aspects`);
+        } catch (err) {
+            const message = err?.message || String(err);
+
+            results.push({
+                typeId: type?.id,
+                typeName: type?.name,
+                ok: false,
+                error: message,
+            });
+
+            console.error(`[cache-warm] FAIL: ${categoryLabel} -> ${message}`);
+
+            if (!continueOnError) {
+                throw err;
+            }
+        }
+    }
+
+    const successCount = results.filter((row) => row.ok).length;
+    const failureCount = results.length - successCount;
+    const elapsedMs = Date.now() - startedAt;
+
+    console.log(`[cache-warm] Finished in ${elapsedMs}ms. Success: ${successCount}, Failed: ${failureCount}`);
+
+    if (failureCount > 0) {
+        const failed = results.filter((row) => !row.ok);
+        console.log('[cache-warm] Failed categories:', failed);
+    }
+
+    return {
+        total: results.length,
+        successCount,
+        failureCount,
+        elapsedMs,
+        results,
+    };
+}
+
 
 async function main() {
   try {
+        const warmAspectsRequested = process.argv.includes('--warm-aspects') ||
+            String(process.env.npm_config_warm_aspects || '').toLowerCase() === 'true';
+
+        if (warmAspectsRequested) {
+            console.log('Warming all category aspects cache...');
+            await warmAllCategoryAspectsCache({ continueOnError: true });
+            return;
+        }
+
     // await ebaySetup();
 
     // const ebayAuthToken = new EbayAuthToken({
