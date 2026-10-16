@@ -505,19 +505,15 @@ async function getPriceRates() {
   return Array.isArray(data) ? data : [];
 }
 
-async function getListingsForPriceRateCheck({ state = null } = {}) {
+async function getListingsForPriceRateCheck() {
   const client = getSupabase();
-  const parsedState = state === null || state === undefined || state === '' ? null : Number(state);
-  const hasStateFilter = Number.isFinite(parsedState);
+  const publishedState = 1;
 
     let query = client
       .from('listing')
       .select('sku, price, base_price, created_at, state')
+      .eq('state', publishedState)
     .order('created_at', { ascending: false });
-
-  if (hasStateFilter) {
-    query = query.eq('state', parsedState);
-  }
 
   const { data, error } = await query;
 

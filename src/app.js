@@ -1833,14 +1833,12 @@ app.post('/api/generate-listing-images', requireAuth, async (req, res) => {
 
 async function applyPriceRateLadder() {
 	const rates = (await getPriceRates())
-		.filter((rate) => Number.isFinite(Number(rate.days_to_change)) && Number(rate.days_to_change) > 0)
+		.filter((rate) => Number.isFinite(Number(rate.days_to_change)) && Number(rate.days_to_change) >= 0)
+		.filter((rate) => Number.isFinite(Number(rate.price)) && Number(rate.price) > 0)
 		.sort((a, b) => Number(a.days_to_change) - Number(b.days_to_change));
+	const fallbackMultiplier = 1;
 
-	if (!rates.length) {
-		return { evaluatedCount: 0, updatedCount: 0 };
-	}
-
-	const listings = await getListingsForPriceRateCheck({ state: 1 });
+	const listings = await getListingsForPriceRateCheck();
 	const now = Date.now();
 	const client = getSupabase();
 	let evaluatedCount = 0;
@@ -1864,12 +1862,7 @@ async function applyPriceRateLadder() {
 		const applicableRate = [...rates]
 			.filter((rate) => Number(rate.days_to_change) <= ageDays)
 			.sort((a, b) => Number(b.days_to_change) - Number(a.days_to_change))[0];
-
-		if (!applicableRate) {
-			continue;
-		}
-
-		const multiplier = Number(applicableRate.price);
+		const multiplier = applicableRate ? Number(applicableRate.price) : fallbackMultiplier;
 		const effectiveBasePrice = Number.isFinite(basePrice) && basePrice > 0 ? basePrice : price;
 		const targetPrice = Number((effectiveBasePrice * multiplier).toFixed(2));
 
@@ -1888,7 +1881,7 @@ async function applyPriceRateLadder() {
 				oldPrice: roundedCurrentPrice,
 				newPrice: targetPrice,
 				ageDays,
-				thresholdDays: Number(applicableRate.days_to_change),
+				thresholdDays: applicableRate ? Number(applicableRate.days_to_change) : 0,
 				basePrice: effectiveBasePrice,
 				multiplier,
 			});

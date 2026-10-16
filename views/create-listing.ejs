@@ -226,26 +226,6 @@
           <div class="review-stack">
             <div class="review-section">
               <div class="review-header">
-                <h3><strong>Base Price</strong></h3>
-              </div>
-              <div class="review-summary-row">
-                <span class="summary-review-label">Base price</span>
-                <span class="summary-review-value">
-                  <select id="listing-price" name="listing-price" class="summary-select" aria-label="Choose base price">
-                    <option value="4.99" <%= Number(defaultListingPrice || 10).toFixed(2) === '4.99' ? 'selected' : '' %>>4.99</option>
-                    <option value="9.99" <%= Number(defaultListingPrice || 10).toFixed(2) === '9.99' ? 'selected' : '' %>>9.99</option>
-                    <option value="14.99" <%= Number(defaultListingPrice || 10).toFixed(2) === '14.99' ? 'selected' : '' %>>14.99</option>
-                    <option value="19.99" <%= Number(defaultListingPrice || 10).toFixed(2) === '19.99' ? 'selected' : '' %>>19.99</option>
-                    <option value="24.99" <%= Number(defaultListingPrice || 10).toFixed(2) === '24.99' ? 'selected' : '' %>>24.99</option>
-                    <option value="29.99" <%= Number(defaultListingPrice || 10).toFixed(2) === '29.99' ? 'selected' : '' %>>29.99</option>
-                  </select>
-                </span>
-              </div>
-              <p class="review-note muted">This value becomes the listing's base_price and the starting price in eBay.</p>
-            </div>
-
-            <div class="review-section">
-              <div class="review-header">
                 <h3><strong>Category</strong></h3>
               </div>
               <div class="review-summary-row">
@@ -318,6 +298,28 @@
             <p class="eyebrow muted">Step 2</p>
             <h2>Options</h2>
             <p class="selected-category"><strong>Category:</strong> <%= selectedCategory %></p>
+          </div>
+
+          <div class="aspect-item">
+            <label for="listing-price">Base price</label>
+
+            <div class="custom-select aspect-select" id="listing-price-select" data-select>
+              <button type="button" class="select-trigger" data-select-trigger aria-haspopup="listbox" aria-expanded="false">
+                <span class="select-trigger-text"><%= Number(defaultListingPrice || 14.99).toFixed(2) %></span>
+                <span class="select-arrow">▾</span>
+              </button>
+
+              <input type="hidden" id="listing-price" name="listing-price" value="<%= Number(defaultListingPrice || 14.99).toFixed(2) %>" />
+
+              <div class="select-options" role="listbox" aria-label="Base price options">
+                <button type="button" class="select-option" role="option" data-value="4.99" data-label="4.99">4.99</button>
+                <button type="button" class="select-option" role="option" data-value="9.99" data-label="9.99">9.99</button>
+                <button type="button" class="select-option" role="option" data-value="14.99" data-label="14.99">14.99</button>
+                <button type="button" class="select-option" role="option" data-value="19.99" data-label="19.99">19.99</button>
+                <button type="button" class="select-option" role="option" data-value="24.99" data-label="24.99">24.99</button>
+                <button type="button" class="select-option" role="option" data-value="29.99" data-label="29.99">29.99</button>
+              </div>
+            </div>
           </div>
 
           <% if (aspectError) { %>
@@ -642,43 +644,6 @@
         return saved;
       };
 
-      const persistPriceDraft = (nextValue) => {
-        const priceInput = document.getElementById('listing-price');
-        if (!priceInput) return;
-
-        const valid = normalizePriceInput(nextValue);
-        const finalValue = valid ?? getSavedPrice();
-        const draft = getListingDraft();
-
-        if (valid === null) {
-          priceInput.value = finalValue.toFixed(2);
-          return;
-        }
-
-        draft.price = Number(finalValue.toFixed(2));
-        draft.basePrice = Number(finalValue.toFixed(2));
-        setListingDraft(draft);
-        priceInput.value = finalValue.toFixed(2);
-      };
-
-      const savePriceDraft = () => {
-        const priceInput = document.getElementById('listing-price');
-        if (!priceInput) return;
-
-        const valid = normalizePriceInput(priceInput.value);
-        const draft = getListingDraft();
-
-        if (valid === null) {
-          priceInput.value = getSavedPrice().toFixed(2);
-          return;
-        }
-
-        draft.price = Number(valid.toFixed(2));
-        draft.basePrice = Number(valid.toFixed(2));
-        setListingDraft(draft);
-        priceInput.value = valid.toFixed(2);
-      };
-
       const persistSelectedOption = (input) => {
         if (!input || !input.name) return;
         const draft = getListingDraft();
@@ -768,7 +733,7 @@
           const tagImage64 = sessionStorage.getItem(getPhotoStorageKey('tag')) || undefined;
           const draft = JSON.parse(sessionStorage.getItem('listing-draft') || '{}');
           const category = new URLSearchParams(window.location.search).get('category');
-          const parsedPrice = normalizePriceInput(document.getElementById('listing-price')?.value ?? draft.price ?? defaultListingPrice);
+          const parsedPrice = normalizePriceInput(draft.basePrice ?? draft.price ?? defaultListingPrice);
           const priceValue = parsedPrice ?? getSavedPrice();
 
           if (!frontImage64 || !backImage64) {
@@ -823,9 +788,42 @@
 
       resetFreshListingDraft();
 
-      const priceInput = document.getElementById('listing-price');
-      const priceSaveButton = document.getElementById('listing-price-save');
-      if (priceInput) {
+      const basePriceSelectRoot = document.getElementById('listing-price-select');
+      if (basePriceSelectRoot) {
+        const trigger = basePriceSelectRoot.querySelector('[data-select-trigger]');
+        const hiddenInput = basePriceSelectRoot.querySelector('input[type="hidden"]');
+        const optionButtons = basePriceSelectRoot.querySelectorAll('.select-option');
+        const triggerText = basePriceSelectRoot.querySelector('.select-trigger-text');
+
+        const closeMenu = () => {
+          basePriceSelectRoot.classList.remove('is-open');
+          trigger?.setAttribute('aria-expanded', 'false');
+        };
+
+        const applyPriceSelection = (nextPrice) => {
+          const normalized = normalizePriceInput(nextPrice);
+          const fallback = getSavedPrice();
+          const selected = normalized ?? fallback;
+          const selectedLabel = selected.toFixed(2);
+
+          if (hiddenInput) {
+            hiddenInput.value = selectedLabel;
+          }
+          if (triggerText) {
+            triggerText.textContent = selectedLabel;
+          }
+
+          optionButtons.forEach((button) => {
+            const isSelected = String(button.dataset.value || '') === selectedLabel;
+            button.classList.toggle('is-selected', isSelected);
+          });
+
+          const draftState = getListingDraft();
+          draftState.price = Number(selectedLabel);
+          draftState.basePrice = Number(selectedLabel);
+          setListingDraft(draftState);
+        };
+
         const draft = getListingDraft();
         const savedPrice = getSavedPrice();
         if (draft.price == null) {
@@ -833,30 +831,28 @@
           draft.basePrice = savedPrice;
           setListingDraft(draft);
         }
-        priceInput.value = savedPrice.toFixed(2);
 
-        const syncPriceSelection = () => {
-          const selectedPrice = normalizePriceInput(priceInput.value);
-          if (selectedPrice === null) {
-            return;
-          }
+        applyPriceSelection(savedPrice);
 
-          const draftState = getListingDraft();
-          draftState.price = Number(selectedPrice.toFixed(2));
-          draftState.basePrice = Number(selectedPrice.toFixed(2));
-          setListingDraft(draftState);
-        };
-
-        priceInput.addEventListener('change', syncPriceSelection);
-        priceInput.addEventListener('input', () => {
-          if (!priceInput.value.trim()) {
-            return;
-          }
-          syncPriceSelection();
+        trigger?.addEventListener('click', (event) => {
+          event.stopPropagation();
+          const isOpen = basePriceSelectRoot.classList.toggle('is-open');
+          trigger.setAttribute('aria-expanded', String(isOpen));
         });
 
-        priceSaveButton?.addEventListener('click', () => {
-          savePriceDraft();
+        optionButtons.forEach((button) => {
+          button.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const value = button.dataset.value;
+            applyPriceSelection(value);
+            closeMenu();
+          });
+        });
+
+        document.addEventListener('click', (event) => {
+          if (!basePriceSelectRoot.contains(event.target)) {
+            closeMenu();
+          }
         });
       }
 
