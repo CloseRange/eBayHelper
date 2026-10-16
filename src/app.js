@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const session = require('express-session');
 const EbayAuthToken = require('ebay-oauth-nodejs-client');
-const { getSupabase, isSupabaseConfigured, getDashboardListings, getPendingListings, getLogs, getDatabaseTableNames, getTableRows, updateTableRow, deleteTableRow, insertTableRow, getSaleDetails, getPriceRates, getListingsForPriceRateCheck, savePriceRate, deletePriceRate, getListingDetailsBySku, deleteListingAndAssetsBySku, addSaleDetails, updateListingState, updateListingTableState, getListingsForEbayRepost } = require('./supabase/client');
+const { getSupabase, isSupabaseConfigured, getDashboardListings, getPendingListings, getLogs, getDatabaseTableNames, getTableRows, updateTableRow, deleteTableRow, insertTableRow, getSaleDetails, getPriceRates, getListingsForPriceRateCheck, savePriceRate, deletePriceRate, getListingDetailsBySku, deleteListingAndAssetsBySku, addSaleDetails, updateListingState, updateListingTableState, deleteListingState, getListingsForEbayRepost } = require('./supabase/client');
 const { getEbayAccessToken, getEbaySignInUrl, exchangeAuthCodeForTokens, getRequestedScopes } = require('./ebay');
 const { ebaySetup, getEbayPostingStatusForSku, getActiveListings, getEbayListingDetailsForSku, updateListingPrice, postListing } = require('./ebay/ebay');
 const { getEbayConversations, getEbayMessages } = require('./ebay/ebay_messages');
@@ -1376,12 +1376,7 @@ app.get('/api/messages/ebay/conversations/:conversationId/messages', requireAuth
 
 app.get('/create-listing', requireAuth, async (req, res) => {
 	hydrateEbaySessionToken(req);
-	const priceRates = await getPriceRates();
-	const basePriceRate = (priceRates || []).find((rate) => Number(rate.id) === 1);
-	const defaultListingPrice = Number(basePriceRate?.price);
-	const safeDefaultListingPrice = Number.isFinite(defaultListingPrice) && defaultListingPrice > 0
-		? defaultListingPrice
-		: 10;
+	const safeDefaultListingPrice = 14.99;
 	const categoryOptions = Object.values(types).map((type) => ({
 		value: type.name,
 		label: type.name,
@@ -1436,11 +1431,6 @@ app.post('/api/listing/generate', requireAuth, async (req, res) => {
 			features: rawInfo.features ?? rawInfo.aspects ?? {},
 		};
 
-		const basePriceRates = await getPriceRates();
-		const basePriceRate = (basePriceRates || []).find((rate) => Number(rate.id) === 1);
-		const configuredBasePrice = Number(basePriceRate?.price);
-		const defaultBasePrice = Number.isFinite(configuredBasePrice) && configuredBasePrice > 0 ? configuredBasePrice : 10;
-
 		if (typeof info.category === 'string' && info.category.trim() && !info.categoryId) {
 			const selectedType = Object.values(types).find((type) => type.name === info.category) || null;
 			if (selectedType) {
@@ -1474,7 +1464,7 @@ app.post('/api/listing/generate', requireAuth, async (req, res) => {
 		}
 
 		if (!Number.isFinite(Number(info.price)) || Number(info.price) <= 0) {
-			info.price = defaultBasePrice;
+			info.price = 14.99;
 		}
 
 		const sku = await generateSKU();
@@ -1747,14 +1737,17 @@ app.post('/api/listing/:sku/finalize', requireAuth, async (req, res) => {
 			daysAlive,
 		});
 
-		const deletionResult = await deleteListingAndAssetsBySku(sku);
+		const archived = await updateListingTableState(sku, 0);
+		await deleteListingState(sku).catch(() => null);
 
 		return res.json({
 			ok: true,
 			sku,
 			finalized: true,
-			deletedListing: deletionResult.deletedListing,
-			deletedImages: deletionResult.deletedImages,
+			archived: true,
+			state: archived?.state ?? 0,
+			deletedListing: false,
+			deletedImages: 0,
 			daysAlive,
 			soldPrice: priceValue,
 		});
@@ -1858,6 +1851,7 @@ async function applyPriceRateLadder() {
 		const sku = typeof listing?.sku === 'string' ? listing.sku.trim() : '';
 		const listingState = Number(listing?.state);
 		const price = Number(listing?.price);
+		const basePrice = Number(listing?.base_price);
 		const createdAt = listing?.created_at ? Date.parse(listing.created_at) : NaN;
 
 		if (listingState !== 1 || !sku || !Number.isFinite(price) || !Number.isFinite(createdAt)) {
@@ -1875,24 +1869,28 @@ async function applyPriceRateLadder() {
 			continue;
 		}
 
-		console.log(`[price-ladder] ${sku} age=${ageDays} days, selected threshold=${applicableRate.days_to_change} => target $${applicableRate.price}`);
+		const multiplier = Number(applicableRate.price);
+		const effectiveBasePrice = Number.isFinite(basePrice) && basePrice > 0 ? basePrice : price;
+		const targetPrice = Number((effectiveBasePrice * multiplier).toFixed(2));
 
-		const targetPrice = Number(applicableRate.price);
-		if (!Number.isFinite(targetPrice) || targetPrice < 0) {
+		if (!Number.isFinite(multiplier) || multiplier <= 0 || !Number.isFinite(targetPrice) || targetPrice < 0) {
 			continue;
 		}
 
-		if (price > targetPrice) {
-			console.log(`[price-ladder] Lowering ${sku} from $${price} to $${targetPrice} at ${ageDays} days.`);
+		const roundedCurrentPrice = Number(price.toFixed(2));
+		if (roundedCurrentPrice !== targetPrice) {
+			console.log(`[price-ladder] Setting ${sku} from $${roundedCurrentPrice} to $${targetPrice} using base $${effectiveBasePrice} × ${multiplier} at ${ageDays} days.`);
 			await updateListingPrice(sku, targetPrice);
 			await client.from('listing').update({ price: targetPrice }).eq('sku', sku);
 			updatedCount += 1;
 			changedListings.push({
 				sku,
-				oldPrice: price,
+				oldPrice: roundedCurrentPrice,
 				newPrice: targetPrice,
 				ageDays,
 				thresholdDays: Number(applicableRate.days_to_change),
+				basePrice: effectiveBasePrice,
+				multiplier,
 			});
 		}
 	}

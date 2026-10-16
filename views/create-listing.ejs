@@ -226,6 +226,26 @@
           <div class="review-stack">
             <div class="review-section">
               <div class="review-header">
+                <h3><strong>Base Price</strong></h3>
+              </div>
+              <div class="review-summary-row">
+                <span class="summary-review-label">Base price</span>
+                <span class="summary-review-value">
+                  <select id="listing-price" name="listing-price" class="summary-select" aria-label="Choose base price">
+                    <option value="4.99" <%= Number(defaultListingPrice || 10).toFixed(2) === '4.99' ? 'selected' : '' %>>4.99</option>
+                    <option value="9.99" <%= Number(defaultListingPrice || 10).toFixed(2) === '9.99' ? 'selected' : '' %>>9.99</option>
+                    <option value="14.99" <%= Number(defaultListingPrice || 10).toFixed(2) === '14.99' ? 'selected' : '' %>>14.99</option>
+                    <option value="19.99" <%= Number(defaultListingPrice || 10).toFixed(2) === '19.99' ? 'selected' : '' %>>19.99</option>
+                    <option value="24.99" <%= Number(defaultListingPrice || 10).toFixed(2) === '24.99' ? 'selected' : '' %>>24.99</option>
+                    <option value="29.99" <%= Number(defaultListingPrice || 10).toFixed(2) === '29.99' ? 'selected' : '' %>>29.99</option>
+                  </select>
+                </span>
+              </div>
+              <p class="review-note muted">This value becomes the listing's base_price and the starting price in eBay.</p>
+            </div>
+
+            <div class="review-section">
+              <div class="review-header">
                 <h3><strong>Category</strong></h3>
               </div>
               <div class="review-summary-row">
@@ -612,9 +632,10 @@
 
       const getSavedPrice = () => {
         const draft = getListingDraft();
-        const saved = normalizePriceInput(draft.price);
+        const saved = normalizePriceInput(draft.basePrice ?? draft.price);
         if (saved === null) {
           draft.price = defaultListingPrice;
+          draft.basePrice = defaultListingPrice;
           setListingDraft(draft);
           return defaultListingPrice;
         }
@@ -635,6 +656,7 @@
         }
 
         draft.price = Number(finalValue.toFixed(2));
+        draft.basePrice = Number(finalValue.toFixed(2));
         setListingDraft(draft);
         priceInput.value = finalValue.toFixed(2);
       };
@@ -652,6 +674,7 @@
         }
 
         draft.price = Number(valid.toFixed(2));
+        draft.basePrice = Number(valid.toFixed(2));
         setListingDraft(draft);
         priceInput.value = valid.toFixed(2);
       };
@@ -773,6 +796,7 @@
                 info: {
                   category: category || draft.category || '',
                   price: Number(priceValue.toFixed(2)),
+                  basePrice: Number(priceValue.toFixed(2)),
                   features: draft.options || {},
                 },
               }),
@@ -806,14 +830,29 @@
         const savedPrice = getSavedPrice();
         if (draft.price == null) {
           draft.price = savedPrice;
+          draft.basePrice = savedPrice;
           setListingDraft(draft);
         }
         priceInput.value = savedPrice.toFixed(2);
 
+        const syncPriceSelection = () => {
+          const selectedPrice = normalizePriceInput(priceInput.value);
+          if (selectedPrice === null) {
+            return;
+          }
+
+          const draftState = getListingDraft();
+          draftState.price = Number(selectedPrice.toFixed(2));
+          draftState.basePrice = Number(selectedPrice.toFixed(2));
+          setListingDraft(draftState);
+        };
+
+        priceInput.addEventListener('change', syncPriceSelection);
         priceInput.addEventListener('input', () => {
           if (!priceInput.value.trim()) {
             return;
           }
+          syncPriceSelection();
         });
 
         priceSaveButton?.addEventListener('click', () => {

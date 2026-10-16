@@ -76,8 +76,8 @@ async function getAllListingSkus() {
 async function getListingsForEbayRepost() {
   const client = getSupabase();
   const { data, error } = await client
-    .from('listing')
-    .select('sku, title, price, description, category_id, condition, aspects, created_at')
+     .from('listing')
+     .select('sku, title, price, base_price, description, category_id, condition, aspects, created_at')
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -141,9 +141,9 @@ async function getDashboardListings({ skuQuery = '', state = null, categoryIds =
   const hasCategoryFilter = normalizedCategoryIds.length > 0;
   const normalizedLimit = Number.isInteger(limit) && limit > 0 ? limit : null;
 
-  let query = client
-    .from('listing')
-    .select('title, price, sku, created_at, category_id')
+    let query = client
+      .from('listing')
+      .select('title, price, base_price, sku, created_at, category_id')
     .order('created_at', { ascending: false });
 
   if (hasStateFilter) {
@@ -510,9 +510,9 @@ async function getListingsForPriceRateCheck({ state = null } = {}) {
   const parsedState = state === null || state === undefined || state === '' ? null : Number(state);
   const hasStateFilter = Number.isFinite(parsedState);
 
-  let query = client
-    .from('listing')
-    .select('sku, price, created_at, state')
+    let query = client
+      .from('listing')
+      .select('sku, price, base_price, created_at, state')
     .order('created_at', { ascending: false });
 
   if (hasStateFilter) {
@@ -634,7 +634,7 @@ async function getListingDetailsBySku(sku) {
 
   const primarySelect = await client
     .from('listing')
-    .select('title, description, price, bin, sn, sku, category_id, condition, aspects, state, created_at')
+    .select('title, description, price, bin, sn, sku, category_id, condition, aspects, base_price, state, created_at')
     .eq('sku', normalizedSku)
     .single();
 
@@ -649,7 +649,7 @@ async function getListingDetailsBySku(sku) {
   if (missingStateColumn) {
     const fallbackSelect = await client
       .from('listing')
-      .select('title, description, price, bin, sn, sku, category_id, condition, aspects, created_at')
+      .select('title, description, price, bin, sn, sku, category_id, condition, aspects, base_price, created_at')
       .eq('sku', normalizedSku)
       .single();
 
@@ -709,6 +709,7 @@ async function createListing({
   title,
   description = null,
   price,
+  basePrice = null,
   bin = null,
   sn,
   sku,
@@ -740,6 +741,7 @@ async function createListing({
       title,
       description,
       price,
+      base_price: basePrice !== null && basePrice !== undefined ? basePrice : price,
       bin,
       sn,
       sku,
@@ -1059,9 +1061,10 @@ function extractStorageObjectRefFromUrl(rawUrl) {
   return null;
 }
 
-async function deleteListingAndAssetsBySku(sku) {
+async function deleteListingAndAssetsBySku(sku, options = {}) {
   const client = getSupabase();
   const normalizedSku = typeof sku === 'string' ? sku.trim() : '';
+  const deleteStorageObjects = options?.deleteStorageObjects !== false;
 
   if (!normalizedSku) {
     throw new Error('sku is required.');
@@ -1089,18 +1092,20 @@ async function deleteListingAndAssetsBySku(sku) {
     objectsByBucket.get(ref.bucket).add(ref.objectPath);
   }
 
-  for (const [bucket, objectPathSet] of objectsByBucket.entries()) {
-    const objectPaths = [...objectPathSet].filter(Boolean);
-    if (!objectPaths.length) {
-      continue;
-    }
+  if (deleteStorageObjects) {
+    for (const [bucket, objectPathSet] of objectsByBucket.entries()) {
+      const objectPaths = [...objectPathSet].filter(Boolean);
+      if (!objectPaths.length) {
+        continue;
+      }
 
-    const { error: storageDeleteError } = await client.storage
-      .from(bucket)
-      .remove(objectPaths);
+      const { error: storageDeleteError } = await client.storage
+        .from(bucket)
+        .remove(objectPaths);
 
-    if (storageDeleteError) {
-      throw storageDeleteError;
+      if (storageDeleteError) {
+        throw storageDeleteError;
+      }
     }
   }
 
