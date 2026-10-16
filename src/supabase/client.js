@@ -1,4 +1,17 @@
+const fs = require('fs');
+const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
+const categoryNameMap = (() => {
+  const filePath = path.join(__dirname, '..', 'cache', 'category_names');
+  try {
+    const raw = fs.readFileSync(filePath, 'utf8');
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (err) {
+    console.warn('[categoryNameMap] Unable to load category names cache:', err.message || err);
+    return {};
+  }
+})();
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
@@ -128,6 +141,63 @@ async function getListingsForEbayRepost() {
   })).filter((row) => row.sku);
 }
 
+function normalizeCategoryFilterValue(value = '') {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+function resolveCategoryFilterMatch(rawValue = '', filterValues = []) {
+  const originalValue = String(rawValue ?? '').trim();
+  if (!originalValue) {
+    return false;
+  }
+
+  const filterSet = new Set(
+    (Array.isArray(filterValues) ? filterValues : [])
+      .map((value) => normalizeCategoryFilterValue(value))
+      .filter(Boolean)
+  );
+
+  if (!filterSet.size) {
+    return false;
+  }
+
+  const resolvedName = (() => {
+    if (/^\d+$/.test(originalValue) && categoryNameMap?.[originalValue]) {
+      return String(categoryNameMap[originalValue]).trim();
+    }
+
+    const byName = Object.entries(categoryNameMap || {}).find(([, mappedValue]) => {
+      return normalizeCategoryFilterValue(mappedValue) === normalizeCategoryFilterValue(originalValue);
+    });
+
+    if (byName) {
+      return String(byName[1]).trim();
+    }
+
+    return originalValue;
+  })();
+
+  const candidates = new Set([
+    normalizeCategoryFilterValue(originalValue),
+    normalizeCategoryFilterValue(resolvedName),
+  ]);
+
+  if (/^\d+$/.test(originalValue)) {
+    candidates.add(String(originalValue));
+  }
+
+  for (const candidate of candidates) {
+    if (filterSet.has(candidate)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 async function getDashboardListings({ skuQuery = '', state = null, categoryIds = [], limit = null } = {}) {
   const client = getSupabase();
   const normalizedSkuQuery = typeof skuQuery === 'string' ? skuQuery.trim() : '';
@@ -141,9 +211,9 @@ async function getDashboardListings({ skuQuery = '', state = null, categoryIds =
   const hasCategoryFilter = normalizedCategoryIds.length > 0;
   const normalizedLimit = Number.isInteger(limit) && limit > 0 ? limit : null;
 
-    let query = client
-      .from('listing')
-      .select('title, price, base_price, sku, created_at, category_id')
+  let query = client
+    .from('listing')
+    .select('title, price, base_price, sku, created_at, category_id')
     .order('created_at', { ascending: false });
 
   if (hasStateFilter) {
@@ -152,10 +222,6 @@ async function getDashboardListings({ skuQuery = '', state = null, categoryIds =
 
   if (normalizedSkuQuery) {
     query = query.ilike('sku', `%${normalizedSkuQuery}%`);
-  }
-
-  if (hasCategoryFilter) {
-    query = query.in('category_id', normalizedCategoryIds);
   }
 
   if (normalizedLimit) {
@@ -169,7 +235,12 @@ async function getDashboardListings({ skuQuery = '', state = null, categoryIds =
     throw error;
   }
 
-  return data || [];
+  const rows = Array.isArray(data) ? data : [];
+  if (!hasCategoryFilter) {
+    return rows;
+  }
+
+  return rows.filter((row) => resolveCategoryFilterMatch(row?.category_id, normalizedCategoryIds));
 }
 
 async function getPendingListings() {

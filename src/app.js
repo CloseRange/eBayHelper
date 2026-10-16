@@ -1,4 +1,5 @@
 const express = require('express');
+const fs = require('fs');
 const path = require('path');
 const session = require('express-session');
 const EbayAuthToken = require('ebay-oauth-nodejs-client');
@@ -8,6 +9,17 @@ const { ebaySetup, getEbayPostingStatusForSku, getActiveListings, getEbayListing
 const { getEbayConversations, getEbayMessages } = require('./ebay/ebay_messages');
 const { types, getAspects, resolveEbayCategoryId } = require('./ebay/ebay_categories');
 const departmentCatalog = require('../categories_major.json');
+const categoryNameMap = (() => {
+	const filePath = path.join(__dirname, 'cache', 'category_names');
+	try {
+		const raw = fs.readFileSync(filePath, 'utf8');
+		const parsed = JSON.parse(raw);
+		return parsed && typeof parsed === 'object' ? parsed : {};
+	} catch (err) {
+		console.warn('[categoryNameMap] Unable to load category names cache:', err.message || err);
+		return {};
+	}
+})();
 const { generateImageModel1 } = require('./ebay/openai_image');
 const { generateSKU, generateListing } = require('./util/post_new_item');
 const { generatePrintAndDiscardSkuLabelPdf, generateSkuLabelPdf } = require('./util/sku_label_pdf');
@@ -277,6 +289,32 @@ function normalizeCategoryValue(value = '') {
 		.replace(/\s+/g, ' ');
 }
 
+function resolveListingCategoryName(rawValue = '') {
+	const originalValue = String(rawValue ?? '').trim();
+	if (!originalValue) {
+		return '';
+	}
+
+	if (/^\d+$/.test(originalValue) && categoryNameMap?.[originalValue]) {
+		return String(categoryNameMap[originalValue]).trim();
+	}
+
+	const mappedName = Object.entries(categoryNameMap || {}).find(([, mappedValue]) => {
+		return normalizeCategoryValue(mappedValue) === normalizeCategoryValue(originalValue);
+	})?.[1];
+
+	if (mappedName) {
+		return String(mappedName).trim();
+	}
+
+	const directMapped = categoryNameMap?.[originalValue];
+	if (directMapped) {
+		return String(directMapped).trim();
+	}
+
+	return originalValue;
+}
+
 function getDepartmentCategoryNames(departmentKey = '') {
 	const normalizedDepartment = normalizeDepartmentKey(departmentKey);
 	if (!normalizedDepartment) {
@@ -328,15 +366,29 @@ function filterRowsByDepartment(rows = [], requestedDepartment = null, departmen
 		);
 
 		return rows.filter((row) => {
-			const rowCategory = String(row?.category_id ?? '').trim();
-			if (!rowCategory) {
+			const rawCategoryValue = String(row?.category_id ?? '').trim();
+			if (!rawCategoryValue) {
 				return false;
 			}
-			if (normalizedDepartmentNames.has(normalizeCategoryValue(rowCategory))) {
-				return true;
+
+			const resolvedCategoryName = resolveListingCategoryName(rawCategoryValue);
+			const categoryNameVariants = new Set([
+				normalizeCategoryValue(rawCategoryValue),
+				normalizeCategoryValue(resolvedCategoryName),
+			]);
+
+			const numericRowCategory = Number(rawCategoryValue);
+			if (Number.isFinite(numericRowCategory)) {
+				categoryNameVariants.add(String(numericRowCategory));
 			}
-			const numericRowCategory = Number(rowCategory);
-			return Number.isFinite(numericRowCategory) && departmentCategoryIds.includes(String(numericRowCategory));
+
+			for (const variant of categoryNameVariants) {
+				if (normalizedDepartmentNames.has(variant)) {
+					return true;
+				}
+			}
+
+			return false;
 		});
 	}
 
