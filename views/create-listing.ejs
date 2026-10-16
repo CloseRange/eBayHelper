@@ -788,74 +788,6 @@
 
       resetFreshListingDraft();
 
-      const basePriceSelectRoot = document.getElementById('listing-price-select');
-      if (basePriceSelectRoot) {
-        const trigger = basePriceSelectRoot.querySelector('[data-select-trigger]');
-        const hiddenInput = basePriceSelectRoot.querySelector('input[type="hidden"]');
-        const optionButtons = basePriceSelectRoot.querySelectorAll('.select-option');
-        const triggerText = basePriceSelectRoot.querySelector('.select-trigger-text');
-
-        const closeMenu = () => {
-          basePriceSelectRoot.classList.remove('is-open');
-          trigger?.setAttribute('aria-expanded', 'false');
-        };
-
-        const applyPriceSelection = (nextPrice) => {
-          const normalized = normalizePriceInput(nextPrice);
-          const fallback = getSavedPrice();
-          const selected = normalized ?? fallback;
-          const selectedLabel = selected.toFixed(2);
-
-          if (hiddenInput) {
-            hiddenInput.value = selectedLabel;
-          }
-          if (triggerText) {
-            triggerText.textContent = selectedLabel;
-          }
-
-          optionButtons.forEach((button) => {
-            const isSelected = String(button.dataset.value || '') === selectedLabel;
-            button.classList.toggle('is-selected', isSelected);
-          });
-
-          const draftState = getListingDraft();
-          draftState.price = Number(selectedLabel);
-          draftState.basePrice = Number(selectedLabel);
-          setListingDraft(draftState);
-        };
-
-        const draft = getListingDraft();
-        const savedPrice = getSavedPrice();
-        if (draft.price == null) {
-          draft.price = savedPrice;
-          draft.basePrice = savedPrice;
-          setListingDraft(draft);
-        }
-
-        applyPriceSelection(savedPrice);
-
-        trigger?.addEventListener('click', (event) => {
-          event.stopPropagation();
-          const isOpen = basePriceSelectRoot.classList.toggle('is-open');
-          trigger.setAttribute('aria-expanded', String(isOpen));
-        });
-
-        optionButtons.forEach((button) => {
-          button.addEventListener('click', (event) => {
-            event.stopPropagation();
-            const value = button.dataset.value;
-            applyPriceSelection(value);
-            closeMenu();
-          });
-        });
-
-        document.addEventListener('click', (event) => {
-          if (!basePriceSelectRoot.contains(event.target)) {
-            closeMenu();
-          }
-        });
-      }
-
       document.querySelectorAll('[data-upload-box]').forEach((box) => {
         const trigger = box.querySelector('.upload-trigger');
         const popover = box.querySelector('.upload-popover');
@@ -1005,6 +937,30 @@
         const triggerText = selectRoot.querySelector('.select-trigger-text');
         const searchInput = selectRoot.querySelector('[data-search-input]');
         const noResults = selectRoot.querySelector('[data-no-results]');
+        const isBasePriceSelect = hiddenInput?.id === 'listing-price';
+
+        if (isBasePriceSelect) {
+          const draft = getListingDraft();
+          const savedPrice = getSavedPrice();
+          const normalizedSavedPrice = Number(savedPrice.toFixed(2));
+
+          if (draft.price == null || draft.basePrice == null) {
+            draft.price = normalizedSavedPrice;
+            draft.basePrice = normalizedSavedPrice;
+            setListingDraft(draft);
+          }
+
+          const selectedLabel = normalizedSavedPrice.toFixed(2);
+          hiddenInput.value = selectedLabel;
+          if (triggerText) {
+            triggerText.textContent = selectedLabel;
+          }
+
+          optionButtons.forEach((button) => {
+            const isSelected = String(button.dataset.value || '') === selectedLabel;
+            button.classList.toggle('is-selected', isSelected);
+          });
+        }
 
         const closeMenu = () => {
           selectRoot.classList.remove('is-open');
@@ -1053,7 +1009,16 @@
 
             if (hiddenInput) {
               hiddenInput.value = value;
-              persistSelectedOption(hiddenInput);
+              if (isBasePriceSelect) {
+                const selectedPrice = normalizePriceInput(value);
+                const finalPrice = selectedPrice ?? getSavedPrice();
+                const draftState = getListingDraft();
+                draftState.price = Number(finalPrice.toFixed(2));
+                draftState.basePrice = Number(finalPrice.toFixed(2));
+                setListingDraft(draftState);
+              } else {
+                persistSelectedOption(hiddenInput);
+              }
             }
 
             if (triggerText) {
