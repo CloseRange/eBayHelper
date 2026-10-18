@@ -1752,6 +1752,63 @@ app.post('/api/listing/:sku/reactivate', requireAuth, async (req, res) => {
 	}
 });
 
+app.post('/api/listing/:sku/send-to-shipping', requireAuth, async (req, res) => {
+	const sku = typeof req.params.sku === 'string' ? req.params.sku.trim() : '';
+
+	if (!sku) {
+		return res.status(400).json({ error: 'SKU is required.' });
+	}
+
+	try {
+		if (!isSupabaseConfigured()) {
+			return res.status(500).json({ error: 'Database is not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY.' });
+		}
+
+		const details = await getListingDetailsBySku(sku);
+		const listing = details && details.listing ? details.listing : null;
+		if (!listing) {
+			const notFoundError = new Error('Listing not found for this SKU.');
+			notFoundError.code = 'PGRST116';
+			throw notFoundError;
+		}
+
+		const priceValue = Number(listing.price);
+		if (!Number.isFinite(priceValue)) {
+			throw new Error('Listing price is missing or invalid.');
+		}
+
+		const createdAtValue = listing.created_at ? Date.parse(listing.created_at) : NaN;
+		const msPerDay = 1000 * 60 * 60 * 24;
+		const daysAlive = Number.isFinite(createdAtValue)
+			? Math.max(0, Math.floor((Date.now() - createdAtValue) / msPerDay))
+			: 0;
+
+		await addSaleDetails({
+			sku,
+			soldPrice: priceValue,
+			daysAlive,
+		});
+
+		const shipped = await updateListingTableState(sku, 2);
+
+		return res.json({
+			ok: true,
+			sku,
+			sentToShipping: true,
+			state: shipped?.state ?? 2,
+			daysAlive,
+			soldPrice: priceValue,
+		});
+	} catch (err) {
+		const message = err?.code === 'PGRST116'
+			? 'Listing not found for this SKU.'
+			: (err.message || 'Unable to send listing to shipping.');
+
+		console.error('[POST /api/listing/:sku/send-to-shipping] Failed:', err.message || err);
+		return res.status(err?.code === 'PGRST116' ? 404 : 500).json({ error: message });
+	}
+});
+
 app.post('/api/listing/:sku/finalize', requireAuth, async (req, res) => {
 	const sku = typeof req.params.sku === 'string' ? req.params.sku.trim() : '';
 

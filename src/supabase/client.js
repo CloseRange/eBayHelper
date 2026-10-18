@@ -60,24 +60,34 @@ function getSupabase() {
 
 async function getAllListingSkus() {
   const client = getSupabase();
-  const { data, error } = await client.from('listing').select('sku');
+  const { data, error } = await client.from('listing').select('sku, state');
 
   if (error) {
     console.log(error);
     throw error;
   }
 
-  const listingSkus = (data || []).map((row) => row?.sku).filter(Boolean);
+  const isNotQueued = (row) => {
+    const rawState = row?.state;
+    const parsedState = Number(rawState);
+    return !(Number.isFinite(parsedState) && parsedState === 0);
+  };
+
+  const listingSkus = (data || [])
+    .filter((row) => Boolean(row?.sku) && isNotQueued(row))
+    .map((row) => row.sku);
 
   // Include in-flight SKUs from listing_state so concurrent generate requests don't reuse an active SKU.
   let pendingSkus = [];
   try {
     const { data: stateData, error: stateError } = await client
       .from('listing_state')
-      .select('sku');
+      .select('sku, state');
 
     if (!stateError) {
-      pendingSkus = (stateData || []).map((row) => row?.sku).filter(Boolean);
+      pendingSkus = (stateData || [])
+        .filter((row) => Boolean(row?.sku) && isNotQueued(row))
+        .map((row) => row.sku);
     }
   } catch (stateErr) {
     console.warn('[getAllListingSkus] Unable to read listing_state:', stateErr?.message || stateErr);

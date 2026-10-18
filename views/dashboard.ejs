@@ -189,6 +189,7 @@
             </div>
             <p class="print-sku-status" id="print-sku-status" aria-live="polite"></p>
             <div class="modal-text-actions">
+              <button type="button" class="modal-text-button relist-item-button" id="relist-item-button" hidden>Relist Item</button>
               <button type="button" class="modal-text-button finalize-item-button" id="finalize-item-button" disabled>Finalize Item</button>
               <button type="button" class="modal-text-button modal-text-button-danger" id="delete-listing-button" disabled>Delete Item</button>
             </div>
@@ -228,14 +229,27 @@
           const printSkuButton = document.getElementById('print-sku-label-button');
           const printSkuStatus = document.getElementById('print-sku-status');
           const finalizeItemButton = document.getElementById('finalize-item-button');
+          const relistItemButton = document.getElementById('relist-item-button');
           const deleteListingButton = document.getElementById('delete-listing-button');
           const moreInfoButton = document.getElementById('more-info-button');
           const parsedStateFilter = Number(grid && grid.dataset ? grid.dataset.stateFilter : 1);
           const stateFilter = Number.isFinite(parsedStateFilter) ? parsedStateFilter : 1;
           const isArchivedView = stateFilter === 0;
+          const isShippingView = stateFilter === 2;
 
-          if (finalizeItemButton && isArchivedView) {
-            finalizeItemButton.textContent = 'Reactivate Item';
+          if (finalizeItemButton) {
+            if (isArchivedView) {
+              finalizeItemButton.textContent = 'Reactivate Item';
+            } else if (isShippingView) {
+              finalizeItemButton.textContent = 'Finalize Item';
+            } else {
+              finalizeItemButton.textContent = 'Send to Shipping';
+            }
+          }
+
+          if (relistItemButton) {
+            relistItemButton.hidden = !isShippingView;
+            relistItemButton.textContent = 'Relist Item';
           }
 
           document.querySelectorAll('.state-dot[data-state-color]').forEach((dot) => {
@@ -871,21 +885,28 @@
               return;
             }
 
+            const actionPath = isShippingView
+              ? '/finalize'
+              : '/send-to-shipping';
+
             if (printSkuButton) {
               printSkuButton.disabled = true;
             }
             if (finalizeItemButton) {
               finalizeItemButton.disabled = true;
             }
+            if (relistItemButton) {
+              relistItemButton.disabled = true;
+            }
             if (deleteListingButton) {
               deleteListingButton.disabled = true;
             }
             if (printSkuStatus) {
-              printSkuStatus.textContent = 'Finalizing item...';
+              printSkuStatus.textContent = isShippingView ? 'Finalizing item...' : 'Sending item to shipping...';
             }
 
             try {
-              const response = await fetch('/api/listing/' + encodeURIComponent(skuToFinalize) + '/finalize', {
+              const response = await fetch('/api/listing/' + encodeURIComponent(skuToFinalize) + actionPath, {
                 method: 'POST',
                 headers: {
                   Accept: 'application/json',
@@ -894,13 +915,13 @@
 
               const payload = await response.json().catch(() => ({}));
               if (!response.ok || !payload || payload.ok !== true) {
-                throw new Error(payload && payload.error ? payload.error : 'Unable to finalize item.');
+                throw new Error(payload && payload.error ? payload.error : (isShippingView ? 'Unable to finalize item.' : 'Unable to send item to shipping.'));
               }
 
               removeActiveRowFromGrid();
 
               if (printSkuStatus) {
-                printSkuStatus.textContent = 'Item finalized.';
+                printSkuStatus.textContent = isShippingView ? 'Item finalized.' : 'Item sent to shipping.';
               }
               activeSku = '';
               applyFilter();
@@ -909,7 +930,7 @@
               }, 550);
             } catch (error) {
               if (printSkuStatus) {
-                printSkuStatus.textContent = error && error.message ? error.message : 'Unable to finalize item.';
+                printSkuStatus.textContent = error && error.message ? error.message : (isShippingView ? 'Unable to finalize item.' : 'Unable to send item to shipping.');
               }
             } finally {
               if (printSkuButton) {
@@ -917,6 +938,9 @@
               }
               if (finalizeItemButton) {
                 finalizeItemButton.disabled = !activeSku;
+              }
+              if (relistItemButton) {
+                relistItemButton.disabled = !activeSku;
               }
               if (deleteListingButton) {
                 deleteListingButton.disabled = !activeSku;
@@ -938,6 +962,9 @@
             }
             if (finalizeItemButton) {
               finalizeItemButton.disabled = true;
+            }
+            if (relistItemButton) {
+              relistItemButton.disabled = true;
             }
             if (deleteListingButton) {
               deleteListingButton.disabled = true;
@@ -979,6 +1006,9 @@
               }
               if (finalizeItemButton) {
                 finalizeItemButton.disabled = !activeSku;
+              }
+              if (relistItemButton) {
+                relistItemButton.disabled = !activeSku;
               }
               if (deleteListingButton) {
                 deleteListingButton.disabled = !activeSku;
@@ -1263,6 +1293,12 @@
               }
 
               void finalizeItem();
+            });
+          }
+
+          if (relistItemButton) {
+            relistItemButton.addEventListener('click', () => {
+              void reactivateItem();
             });
           }
 
