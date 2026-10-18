@@ -694,21 +694,27 @@ app.get('/settings', requireAuth, async (req, res) => {
 	});
 });
 
-app.get('/settings/logs', requireAuth, async (req, res) => {
+async function renderLogsPage(req, res) {
 	let logs = [];
 
 	try {
 		logs = await getLogs();
 	} catch (err) {
-		console.warn('[GET /settings/logs] Unable to load logs:', err.message || err);
+		const routeName = req?.path || '/logs';
+		console.warn(`[GET ${routeName}] Unable to load logs:`, err.message || err);
 		logs = [];
 	}
 
 	return res.render('logs', {
 		currentUser: req.session.user,
 		logs,
+		currentPath: req.path,
 	});
-});
+}
+
+app.get('/logs', requireAuth, renderLogsPage);
+
+app.get('/settings/logs', requireAuth, renderLogsPage);
 
 app.get('/settings/prices', requireAuth, async (req, res) => {
 	let rates = [];

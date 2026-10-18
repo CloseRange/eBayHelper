@@ -1,5 +1,6 @@
 require('dotenv').config();
 
+const debug = require('./../debug/debug');
 const { getEbayApiBase } = require('./index');
 
 async function _optIntoBusinessPolicies() {
@@ -31,16 +32,12 @@ async function _optIntoBusinessPolicies() {
     }
 
     if (!response.ok) {
-        console.error(
-            "Business Policy opt-in failed:",
-            response.status,
-            data
-        );
+        await debug.error('ebay_policies:_optIntoBusinessPolicies', `Business Policy opt-in failed: ${response.status} ${JSON.stringify(data, null, 2)}`);
 
         throw new Error("Unable to opt into eBay Business Policies");
     }
 
-    console.log("Opted into eBay Business Policies!");
+    await debug.info('ebay_policies:_optIntoBusinessPolicies', 'Opted into eBay Business Policies!');
 
     return data;
 }
@@ -94,19 +91,12 @@ async function createFulfillmentPolicy() {
     const data = await response.json();
 
     if (!response.ok) {
-        console.error(
-            "Fulfillment policy error:",
-            response.status,
-            JSON.stringify(data, null, 2)
-        );
+        await debug.error('ebay_policies:createFulfillmentPolicy', `Fulfillment policy error: ${response.status} ${JSON.stringify(data, null, 2)}`);
 
         throw new Error("Failed to create fulfillment policy");
     }
 
-    console.log(
-        "Fulfillment policy created:",
-        data.fulfillmentPolicyId
-    );
+    await debug.info('ebay_policies:createFulfillmentPolicy', `Fulfillment policy created: ${data.fulfillmentPolicyId}`);
 
     return data.fulfillmentPolicyId;
 }
@@ -140,16 +130,12 @@ async function createPaymentPolicy() {
     const data = await response.json();
 
     if (!response.ok) {
-        console.error(
-            "Payment policy error:",
-            response.status,
-            JSON.stringify(data, null, 2)
-        );
+        await debug.error('ebay_policies:createPaymentPolicy', `Payment policy error: ${response.status} ${JSON.stringify(data, null, 2)}`);
 
         throw new Error("Failed to create payment policy");
     }
 
-    console.log("Payment policy created:", data.paymentPolicyId);
+    await debug.info('ebay_policies:createPaymentPolicy', `Payment policy created: ${data.paymentPolicyId}`);
 
     return data.paymentPolicyId;
 }
@@ -194,16 +180,12 @@ async function createReturnPolicy() {
     const data = await response.json();
 
     if (!response.ok) {
-        console.error(
-            "Return policy error:",
-            response.status,
-            JSON.stringify(data, null, 2)
-        );
+        await debug.error('ebay_policies:createReturnPolicy', `Return policy error: ${response.status} ${JSON.stringify(data, null, 2)}`);
 
         throw new Error("Failed to create return policy");
     }
 
-    console.log("Return policy created:", data.returnPolicyId);
+    await debug.info('ebay_policies:createReturnPolicy', `Return policy created: ${data.returnPolicyId}`);
 
     return data.returnPolicyId;
 }
@@ -217,24 +199,7 @@ async function setupEbayPolicies() {
     const returnPolicyId =
         await createReturnPolicy();
 
-    console.log("\n==============================");
-    console.log("EBAY POLICY IDS");
-    console.log("==============================");
-
-    console.log(
-        "EBAY_FULFILLMENT_POLICY_ID=" +
-        fulfillmentPolicyId
-    );
-
-    console.log(
-        "EBAY_PAYMENT_POLICY_ID=" +
-        paymentPolicyId
-    );
-
-    console.log(
-        "EBAY_RETURN_POLICY_ID=" +
-        returnPolicyId
-    );
+    await debug.info('ebay_policies:setupEbayPolicies', `\n==============================\nEBAY POLICY IDS\n==============================\nEBAY_FULFILLMENT_POLICY_ID=${fulfillmentPolicyId}\nEBAY_PAYMENT_POLICY_ID=${paymentPolicyId}\nEBAY_RETURN_POLICY_ID=${returnPolicyId}`);
 
     return {
         fulfillmentPolicyId,
@@ -278,14 +243,9 @@ async function getEbayPolicies() {
     const payment = await paymentResponse.json();
     const returns = await returnResponse.json();
 
-    console.log("FULFILLMENT POLICIES:");
-    console.log(JSON.stringify(fulfillment, null, 2));
-
-    console.log("\nPAYMENT POLICIES:");
-    console.log(JSON.stringify(payment, null, 2));
-
-    console.log("\nRETURN POLICIES:");
-    console.log(JSON.stringify(returns, null, 2));
+    await debug.info('ebay_policies:getEbayPolicies', `FULFILLMENT POLICIES: ${JSON.stringify(fulfillment, null, 2)}`);
+    await debug.info('ebay_policies:getEbayPolicies', `PAYMENT POLICIES: ${JSON.stringify(payment, null, 2)}`);
+    await debug.info('ebay_policies:getEbayPolicies', `RETURN POLICIES: ${JSON.stringify(returns, null, 2)}`);
 
     return {
         fulfillment,

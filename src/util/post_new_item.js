@@ -1,4 +1,5 @@
 const db = require('./../supabase/client');
+const debug = require('./../debug/debug');
 const { generateImageModel1, cleanupProductPhoto, generateListingText } = require('./../ebay/openai_image');
 const { randomUUID } = require('crypto');
 const { postListing } = require('./../ebay/ebay');
@@ -115,7 +116,7 @@ async function generateListing(frontImage64, backImage64, modelImage64A, modelIm
                     base64Data: modelImage64B,
                 });
             } catch (err) {
-                console.error('Error uploading provided model images to Supabase:', err);
+                await debug.error('generateListing.uploadProvidedModelImages', `Error uploading provided model images to Supabase: ${err?.message || err}`);
                 throw new Error('Failed to upload provided model images. Please try again later.');
             }
         } else {
@@ -123,7 +124,7 @@ async function generateListing(frontImage64, backImage64, modelImage64A, modelIm
             try {
                 genData = await generateImageModel1(info.category, info.features, frontImage64, backImage64, sku);
             } catch (err) {
-                console.error('Error generating images with OpenAI:', err);
+                await debug.error('generateListing.generateModelImages', `Error generating images with OpenAI: ${err?.message || err}`);
                 throw new Error('Failed to generate images. Please try again later.');
             }
 
@@ -144,7 +145,7 @@ async function generateListing(frontImage64, backImage64, modelImage64A, modelIm
                         });
                     }
                 } catch (err) {
-                    console.error('Error uploading generated images to Supabase:', err);
+                    await debug.error('generateListing.uploadGeneratedModelImages', `Error uploading generated images to Supabase: ${err?.message || err}`);
                     throw new Error('Failed to upload generated images. Please try again later.');
                 }
             }
@@ -155,14 +156,14 @@ async function generateListing(frontImage64, backImage64, modelImage64A, modelIm
             path: `${info.category}/${sku}-front-${id}.jpg`,
             base64Data: await cleanupProductPhoto(frontImage64),
         });
-        console.log('Front Public URL:', frontPublicUrl);
+        await debug.info('generateListing.frontImage', `Front Public URL: ${frontPublicUrl || 'none'}`);
 
         const backPublicUrl = await db.uploadBase64ImageToBucket({
             bucketName: 'listing-photos',
             path: `${info.category}/${sku}-back-${id}.jpg`,
             base64Data: await cleanupProductPhoto(backImage64),
         });
-        console.log('Back Public URL:', backPublicUrl);
+        await debug.info('generateListing.backImage', `Back Public URL: ${backPublicUrl || 'none'}`);
 
         let tagPublicUrl = null;
         if (tagImage64 && String(tagImage64).trim()) {
@@ -172,7 +173,7 @@ async function generateListing(frontImage64, backImage64, modelImage64A, modelIm
                 base64Data: tagImage64,
             });
         }
-        console.log('Tag Public URL:', tagPublicUrl);
+        await debug.info('generateListing.tagImage', `Tag Public URL: ${tagPublicUrl || 'none'}`);
 
         await db.updateListingState(sku, 6, 'N/A');
 
@@ -240,11 +241,11 @@ async function generateListing(frontImage64, backImage64, modelImage64A, modelIm
 
         return result;
     } catch (err) {
-        console.error('Error generating listing:', err);
+        await debug.error('generateListing.error', `Error generating listing: ${err?.message || err}`);
         throw err;
     } finally {
         await db.deleteListingState(sku).catch((cleanupErr) => {
-            console.error('[generateListing] Failed to clear listing state:', cleanupErr);
+            debug.error('generateListing.cleanup', `[generateListing] Failed to clear listing state: ${cleanupErr?.message || cleanupErr}`);
         });
     }
 }

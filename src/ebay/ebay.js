@@ -1,5 +1,6 @@
 require('dotenv').config();
 
+const debug = require('./../debug/debug');
 const { setupEbayPolicies } = require('./ebay_policies');
 const { getEbayApiBase, getEbaySignInUrl } = require('./index');
 const db = require('../supabase/client');
@@ -8,7 +9,7 @@ function getEbayJsonHeaders() {
     const token = process.env.EBAY_ACCESS_TOKEN;
 
     if (!token) {
-        console.warn('[eBay] No EBAY_ACCESS_TOKEN available when building request headers.');
+        debug.warn('ebay:getEbayJsonHeaders', 'No EBAY_ACCESS_TOKEN available when building request headers.');
     }
 
     return {
@@ -39,7 +40,7 @@ async function getAllInventoryItems() {
 
         return data.inventoryItems ?? [];
     } catch (err) {
-        console.error("Error fetching inventory:", err);
+        await debug.error('ebay:getAllInventoryItems', `Error fetching inventory: ${err?.message || err}`);
         throw err;
     }
 }
@@ -77,9 +78,9 @@ async function createLocation(locationKey, locationData) {
 
     if (!response.ok) {
         const error = await response.text();
-        console.error("eBay location error:", response.status, error);
+        await debug.error('ebay:createLocation', `eBay location error: ${response.status} ${error}`);
     } else {
-        console.log("Inventory location created!");
+        await debug.info('ebay:createLocation', 'Inventory location created!');
         return response;
     }
 }
@@ -180,13 +181,13 @@ async function _createInventoryItem(info) {
         }
     };
 
-    console.log('[eBay] Inventory payload:', JSON.stringify({
+    await debug.info('ebay:_createInventoryItem', `Inventory payload for ${info.sku}: ${JSON.stringify({
         sku: info.sku,
         condition: body.condition,
         title: body.product.title,
         imageCount: body.product.imageUrls.length,
         aspectCount: Object.keys(body.product.aspects).length
-    }, null, 2));
+    }, null, 2)}`);
 
     const response = await fetch(
         `${getEbayApiBase()}/sell/inventory/v1/inventory_item/${encodeURIComponent(info.sku)}`,
@@ -203,11 +204,11 @@ async function _createInventoryItem(info) {
     if (!response.ok) {
         const errorText = await response.text();
         const errorMessage = `eBay inventory item create failed: ${response.status} ${errorText}`;
-        console.error("eBay error:", response.status, errorText);
+        await debug.error('ebay:_createInventoryItem', `eBay error: ${response.status} ${errorText}`);
         throw new Error(errorMessage);
     }
 
-    console.log("Inventory item created/updated");
+    await debug.info('ebay:_createInventoryItem', 'Inventory item created/updated');
     return response;
 }
 async function _createOffer(info) {
@@ -254,11 +255,11 @@ async function _createOffer(info) {
 
         if (!response.ok) {
             const message = data?.errors ? JSON.stringify(data.errors) : JSON.stringify(data);
-            console.error("eBay offer error:", response.status, message);
+            await debug.error('ebay:_createOffer', `eBay offer error: ${response.status} ${message}`);
             return { ok: false, status: response.status, message, data };
         }
 
-        console.log("Offer created!");
+        await debug.info('ebay:_createOffer', 'Offer created!');
         return { ok: true, data };
     };
 
@@ -273,7 +274,7 @@ async function _createOffer(info) {
         String(first.message || '').includes('err:216118');
 
     if (needsPolicyRefresh) {
-        console.warn('[eBay] Fulfillment policy is invalid; regenerating eBay business policies and retrying offer creation once.');
+        await debug.warn('ebay:_createOffer', 'Fulfillment policy is invalid; regenerating eBay business policies and retrying offer creation once.');
 
         const { fulfillmentPolicyId, paymentPolicyId, returnPolicyId } = await require('./ebay_policies').setupEbayPolicies();
         process.env.EBAY_FULFILLMENT_POLICY_ID = fulfillmentPolicyId;
@@ -307,17 +308,12 @@ async function _publishOffer(offerId) {
     const data = await response.json();
 
     if (!response.ok) {
-        console.error(
-            "Publish failed:",
-            response.status,
-            JSON.stringify(data, null, 2)
-        );
+        await debug.error('ebay:_publishOffer', `Publish failed: ${response.status} ${JSON.stringify(data, null, 2)}`);
 
         throw new Error("Failed to publish offer");
     }
 
-    console.log("Published!");
-    console.log("Listing ID:", data.listingId);
+    await debug.info('ebay:_publishOffer', `Published! Listing ID: ${data.listingId}`);
 
     return data;
 }
@@ -339,7 +335,7 @@ async function postListing(info={
     }
 }) {
     if (isExplicitLocalTestModeEnabled()) {
-        console.log('[eBay] Local test mode enabled; skipping live inventory publish. Set EBAY_TEST_MODE=false to send to eBay.');
+        await debug.info('ebay:postListing', 'Local test mode enabled; skipping live inventory publish. Set EBAY_TEST_MODE=false to send to eBay.');
         return {
             sku: info.sku,
             mode: 'test-no-op',
@@ -358,7 +354,7 @@ async function postListing(info={
             }
         });
     } catch (error) {
-        console.warn('[eBay] inventory location setup skipped or failed:', error.message || error);
+        await debug.warn('ebay:postListing', `Inventory location setup skipped or failed: ${error?.message || error}`);
     }
 
     await _createInventoryItem(info);
@@ -414,7 +410,7 @@ async function getOffersForSku(sku) {
 }
 async function getActiveListings() {
     const token = process.env.EBAY_ACCESS_TOKEN;
-    console.log('[getActiveListings] mint status:', Boolean(token), token ? `${token.slice(0, 16)}...` : 'missing');
+    await debug.info('ebay:getActiveListings', `Mint status: ${Boolean(token)} ${token ? `${token.slice(0, 16)}...` : 'missing'}`);
 
     const inventoryResponse = await fetch(
         `${getEbayApiBase()}/sell/inventory/v1/inventory_item?limit=100&offset=0`,
@@ -740,14 +736,12 @@ async function updateListingPrice(sku, newPrice) {
         );
     }
 
-    console.log(
-        `[eBay] Updated ${normalizedSku} to $${formattedPrice}`
-    );
+    await debug.info('ebay:updateListingPrice', `Updated ${normalizedSku} to $${formattedPrice}`);
 
     try {
         await db.updatePrice(normalizedSku, Number(formattedPrice));
     } catch (dbError) {
-        console.warn('[eBay] Local listing price update failed after successful eBay update:', dbError.message || dbError);
+        await debug.warn('ebay:updateListingPrice', `Local listing price update failed after successful eBay update: ${dbError?.message || dbError}`);
     }
 
     return {

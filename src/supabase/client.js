@@ -1,6 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
+const debug = require('./../debug/debug');
+
 const categoryNameMap = (() => {
   const filePath = path.join(__dirname, '..', 'cache', 'category_names');
   try {
@@ -8,7 +10,7 @@ const categoryNameMap = (() => {
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === 'object' ? parsed : {};
   } catch (err) {
-    console.warn('[categoryNameMap] Unable to load category names cache:', err.message || err);
+    debug.warn('supabase:categoryNameMap', `Unable to load category names cache: ${err?.message || err}`);
     return {};
   }
 })();
@@ -58,12 +60,35 @@ function getSupabase() {
   return supabase;
 }
 
+async function logDbAction(actionName, details) {
+  const message = details === undefined || details === null
+    ? `Database action: ${actionName}`
+    : (typeof details === 'string' ? details : JSON.stringify(details));
+
+  try {
+    return await debug.info(`supabase:${actionName}`, message);
+  } catch (err) {
+    return null;
+  }
+}
+
+async function logDbError(actionName, error) {
+  const message = error && error.message ? error.message : (typeof error === 'string' ? error : JSON.stringify(error));
+
+  try {
+    return await debug.error(`supabase:${actionName}`, message);
+  } catch (err) {
+    return null;
+  }
+}
+
 async function getAllListingSkus() {
   const client = getSupabase();
+  await logDbAction('getAllListingSkus', 'Reading listing SKUs from the database.');
   const { data, error } = await client.from('listing').select('sku, state');
 
   if (error) {
-    console.log(error);
+    await logDbError('getAllListingSkus', error);
     throw error;
   }
 
@@ -90,7 +115,7 @@ async function getAllListingSkus() {
         .map((row) => row.sku);
     }
   } catch (stateErr) {
-    console.warn('[getAllListingSkus] Unable to read listing_state:', stateErr?.message || stateErr);
+    await debug.warn('supabase:getAllListingSkus', `Unable to read listing_state: ${stateErr?.message || stateErr}`);
   }
 
   return [...new Set([...listingSkus, ...pendingSkus])];
@@ -241,7 +266,7 @@ async function getDashboardListings({ skuQuery = '', state = null, categoryIds =
   const { data, error } = await query;
 
   if (error) {
-    console.error('[getDashboardListings] Supabase error:', error);
+    await logDbError('getDashboardListings', error);
     throw error;
   }
 
@@ -282,7 +307,7 @@ async function getPendingListings() {
       return [];
     }
 
-    console.error('[getPendingListings] Supabase error:', error);
+    await logDbError('getPendingListings', error);
     return [];
   }
 
@@ -337,7 +362,7 @@ async function getPendingListings() {
             break;
           }
         } catch (stateLookupError) {
-          console.warn('[getPendingListings] State lookup failed for table', tableName, stateLookupError);
+          await debug.warn('supabase:getPendingListings', `State lookup failed for table ${tableName}: ${stateLookupError?.message || stateLookupError}`);
         }
       }
     }
@@ -521,7 +546,7 @@ async function getLogs({ limit = 200 } = {}) {
       continue;
     }
 
-    console.error('[getLogs] Supabase error:', error);
+    await logDbError('getLogs', error);
     return [];
   }
 
@@ -567,7 +592,7 @@ async function getSaleDetails() {
     break;
   }
 
-  console.error('[getSaleDetails] Supabase error:', lastError);
+  await logDbError('getSaleDetails', lastError);
   throw lastError || new Error('Unable to load sale details.');
 }
 
@@ -579,7 +604,7 @@ async function getPriceRates() {
     .order('id', { ascending: true });
 
   if (error) {
-    console.error('[getPriceRates] Supabase error:', error);
+    await logDbError('getPriceRates', error);
     return [];
   }
 
@@ -599,7 +624,7 @@ async function getListingsForPriceRateCheck() {
   const { data, error } = await query;
 
   if (error) {
-    console.error('[getListingsForPriceRateCheck] Supabase error:', error);
+    await logDbError('getListingsForPriceRateCheck', error);
     return [];
   }
 
@@ -830,7 +855,7 @@ async function createListing({
     .single();
 
   if (error) {
-    console.error('[createListing] Supabase error:', error);
+    await logDbError('createListing', error);
     throw error;
   }
 
@@ -869,7 +894,7 @@ async function addListingImages(sku, imageUrls = []) {
     .select();
 
   if (error) {
-    console.error('[addListingImages] Supabase error:', error);
+    await logDbError('addListingImages', error);
     throw error;
   }
 
@@ -897,7 +922,7 @@ async function updateListingState(sku, newState, title) {
     .single();
 
   if (error) {
-    console.error('[updateListingState] Supabase error:', error);
+    await logDbError('updateListingState', error);
     return null;
   }
 
@@ -929,7 +954,7 @@ async function updateListingTableState(sku, newState) {
     .single();
 
   if (error) {
-    console.error('[updateListingTableState] Supabase error:', error);
+    await logDbError('updateListingTableState', error);
     throw error;
   }
 
@@ -998,7 +1023,7 @@ async function addSaleDetails({ sku, soldPrice, daysAlive }) {
     break;
   }
 
-  console.error('[addSaleDetails] Supabase error:', lastError);
+  await logDbError('addSaleDetails', lastError);
   throw lastError || new Error('Unable to add sale details.');
 }
 async function deleteListingState(sku) {
@@ -1015,7 +1040,7 @@ async function deleteListingState(sku) {
     .select();
 
   if (error) {
-    console.error('[deleteListingState] Supabase error:', error);
+    await logDbError('deleteListingState', error);
     return null;
   }
 
@@ -1051,7 +1076,7 @@ async function addLog(caller, message, type, color) {
       continue;
     }
 
-    console.error('[addLog] Supabase error:', error);
+    await logDbError('addLog', error);
     return null;
   }
 
@@ -1078,9 +1103,9 @@ async function updatePrice(sku, newPrice) {
     .select()
     .single();
 
-  console.log(`[updatePrice] Updated ${sku} to $${newPrice}`);
+  await debug.info('supabase:updatePrice', `Updated ${sku} to $${newPrice}`);
   if (error) {
-    console.error('[updatePrice] Supabase error:', error);
+    await logDbError('updatePrice', error);
     throw error;
   }
 

@@ -1,35 +1,90 @@
 
 const db = require('./../supabase/client');
 
+const DEFAULT_COLORS = {
+    LOG: '#8B8B9E',
+    ERROR: '#E57373',
+    WARN: '#E8B96D',
+    DEBUG: '#A995D6',
+    SUCCESS: '#5CBF9B',
+    CRITICAL: '#D94F70',
+    INFO: '#7C9CC6',
+};
+
+function normalizeLogValue(value, fallback = '') {
+    if (value === null || value === undefined) {
+        return fallback;
+    }
+
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        return trimmed || fallback;
+    }
+
+    if (typeof value === 'number' || typeof value === 'boolean') {
+        return String(value);
+    }
+
+    try {
+        const serialized = JSON.stringify(value);
+        return serialized && serialized !== undefined ? serialized : fallback;
+    } catch (err) {
+        return fallback;
+    }
+}
+
 async function genericLog(caller, message, type, color) {
-    console.log(`[${type}] [${caller}] ${message}`);
-    db.addLog(caller, message, type, color);
+    const normalizedCaller = normalizeLogValue(caller, 'unknown');
+    const normalizedMessage = normalizeLogValue(message, '');
+    const normalizedType = normalizeLogValue(type, 'LOG').toUpperCase();
+    const resolvedColor = typeof color === 'string' && color.trim()
+        ? color.trim()
+        : DEFAULT_COLORS[normalizedType] || '#8B8B9E';
+
+    console.log(`[${normalizedType}] [${normalizedCaller}] ${normalizedMessage}`);
+
+    if (!db || typeof db.addLog !== 'function') {
+        return null;
+    }
+
+    try {
+        return await db.addLog(normalizedCaller, normalizedMessage, normalizedType, resolvedColor);
+    } catch (err) {
+        console.warn('[debug] Unable to persist log entry:', err?.message || err);
+        return null;
+    }
 }
 
 async function log(caller, message) {
-    await genericLog(caller, message, "LOG", "#8B8B9E");
+    return genericLog(caller, message, 'LOG', DEFAULT_COLORS.LOG);
 }
 
 async function error(caller, message) {
-    await genericLog(caller, message, "ERROR", "#E57373");
+    return genericLog(caller, message, 'ERROR', DEFAULT_COLORS.ERROR);
 }
+
 async function warn(caller, message) {
-    await genericLog(caller, message, "WARN", "#E8B96D");
+    return genericLog(caller, message, 'WARN', DEFAULT_COLORS.WARN);
 }
+
 async function debug(caller, message) {
-    await genericLog(caller, message, "DEBUG", "#A995D6");
+    return genericLog(caller, message, 'DEBUG', DEFAULT_COLORS.DEBUG);
 }
+
 async function success(caller, message) {
-    await genericLog(caller, message, "SUCCESS", "#5CBF9B");
+    return genericLog(caller, message, 'SUCCESS', DEFAULT_COLORS.SUCCESS);
 }
+
 async function critical(caller, message) {
-    await genericLog(caller, message, "CRITICAL", "#D94F70");
+    return genericLog(caller, message, 'CRITICAL', DEFAULT_COLORS.CRITICAL);
 }
+
 async function info(caller, message) {
-    await genericLog(caller, message, "INFO", "#7C9CC6");
+    return genericLog(caller, message, 'INFO', DEFAULT_COLORS.INFO);
 }
 
 module.exports = {
+    genericLog,
     log,
     error,
     warn,

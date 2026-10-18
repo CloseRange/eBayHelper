@@ -6,7 +6,8 @@
   const isAnalytics = navPath === '/analytics';
   const isPending = navPath === '/pending';
   const isDatabase = navPath === '/database';
-  const isMore = navPath === '/settings' || navPath === '/pending' || navPath === '/ebay' || navPath === '/messages' || navPath === '/database';
+  const isLogs = navPath === '/logs' || navPath === '/settings/logs';
+  const isMore = navPath === '/settings' || navPath === '/pending' || navPath === '/ebay' || navPath === '/messages' || navPath === '/database' || navPath === '/logs' || navPath === '/settings/logs';
   const canCreateListing = isEbayConnected !== false;
 %>
 
@@ -119,6 +120,13 @@
         <span class="more-drawer-leading">
           <span class="more-drawer-icon"><img src="/icons/toolbox.svg" alt="" /></span>
           <span>Database</span>
+        </span>
+      </a>
+
+      <a class="more-drawer-item <%= isLogs ? 'is-active' : '' %>" href="/logs">
+        <span class="more-drawer-leading">
+          <span class="more-drawer-icon"><img src="/icons/scroll-text.svg" alt="" /></span>
+          <span>Logs</span>
         </span>
       </a>
 
