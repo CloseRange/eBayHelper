@@ -1,5 +1,11 @@
 
-const db = require('./../supabase/client');
+let db = null;
+
+try {
+    db = require('./../supabase/client');
+} catch (err) {
+    db = null;
+}
 
 const DEFAULT_COLORS = {
     LOG: '#8B8B9E',

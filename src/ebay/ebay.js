@@ -78,11 +78,20 @@ async function createLocation(locationKey, locationData) {
 
     if (!response.ok) {
         const error = await response.text();
+        const normalizedError = String(error || '').trim();
+        const alreadyExists = normalizedError.includes('merchantLocationKey already exists') || normalizedError.includes('already exists');
+
+        if (alreadyExists) {
+            await debug.info('ebay:createLocation', `Inventory location already exists for ${merchantLocationKey}; continuing.`);
+            return response;
+        }
+
         await debug.error('ebay:createLocation', `eBay location error: ${response.status} ${error}`);
-    } else {
-        await debug.info('ebay:createLocation', 'Inventory location created!');
         return response;
     }
+
+    await debug.info('ebay:createLocation', 'Inventory location created!');
+    return response;
 }
 function isExplicitLocalTestModeEnabled() {
     const raw = process.env.EBAY_TEST_MODE ?? 'false';
@@ -358,6 +367,12 @@ async function postListing(info={
     }
 
     await _createInventoryItem(info);
+
+    const inventoryItem = await getInventoryItemBySku(info.sku);
+    if (!inventoryItem) {
+        throw new Error(`Inventory item ${info.sku} was not created successfully on eBay before publishing the offer.`);
+    }
+
     const offer = await _createOffer(info);
 
     if (!offer || !offer.offerId) {
